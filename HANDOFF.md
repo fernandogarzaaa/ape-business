@@ -149,6 +149,14 @@ Known gaps, do not hide them:
 
 ## Phase log
 
+- 2026-10-31, Sealbox SMS wiring: provisioning/sealbox.js added
+  and wired into the SMS webhook. Dispatch bodies now carry
+  tenant-scoped tokens for emails and phones, not raw PII, with a
+  schema-fixed audit event and no raw PII in the audit log.
+  Token maps are per tenant and in memory per handler, the same
+  limitation as the SMS handler's other state. Production vault
+  store is still to do. SMS tests grew from 10 to 13 checks, all
+  pass, plus Stripe 12 and AWS dry run pass.
 - 2026-10-31, Meta loop: Wonder-in-loop VERIFIED in the demo copy
   (local, not yet a public repo). Muse Wonder 1.0 drove the APE
   loop through the connector credential. Allow case: finish called,

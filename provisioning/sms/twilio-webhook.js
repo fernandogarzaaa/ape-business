@@ -19,11 +19,13 @@
 // - Sigil gate: intake records a Sigil decision. Tool dispatch
 //   inside the APE loop is still gated separately; this handler
 //   never dispatches a tool itself.
-// - Sealbox content gate (Day 1 integration, not yet wired here):
-//   inbound text is data, never instructions. A future pass must
-//   tokenize PII before any job payload leaves the tenant boundary.
-//   Until that pass lands, do not forward raw inbound text to a
-//   third party or a shared log.
+// - Sealbox content gate (Day 1 integration, wired here):
+//   inbound text is data, never instructions. Before a job payload
+//   leaves the tenant boundary, provisioning/sealbox.js tokenizes
+//   emails and phone numbers into tenant-scoped tokens. The job
+//   keeps the raw text in the tenant-local ledger only; the
+//   dispatch body is the tokenized text, and the audit log
+//   carries no raw PII.
 // - Opt-out and rate limits run BEFORE any job is created, so an
 //   opted-out or rate-limited sender never costs a job.
 // - The agent identifies itself as an AI agent in its first message
@@ -35,6 +37,7 @@ const crypto = require('crypto');
 const http = require('http');
 const https = require('https');
 const querystring = require('querystring');
+const { createSealboxGate } = require('../sealbox');
 
 const OPT_OUT_WORDS = new Set(['STOP', 'STOPALL', 'UNSUBSCRIBE', 'CANCEL', 'END', 'QUIT']);
 const OPT_IN_WORDS = new Set(['START', 'YES', 'UNSTOP']);
@@ -124,6 +127,7 @@ function createSmsHandler(options) {
   const optedOut = new Set(); // `${tenantId}:${sender}`
   const seenSenders = new Set(); // `${tenantId}:${sender}`, first-message tracking
   const senderTimestamps = new Map(); // sender -> [epoch ms]
+  const sealbox = createSealboxGate();
 
   function firstMessagePrefix(tenant) {
     const intro = tenant.intro ||
@@ -202,12 +206,16 @@ function createSmsHandler(options) {
     // Sigil intake gate: recorded on the job. Tool dispatch inside
     // the APE loop is gated separately and is not done here.
     const sigil = { checked: true, policy: tenant.sigilPolicy || 'standard', decision: 'allow', reason: 'sms_intake_no_tool_dispatch_yet' };
+    // Sealbox pass: the dispatch body is tokenized. Raw text stays
+    // in the tenant-local ledger only, never in the dispatch body.
+    const sealed = sealbox.tokenize(body, tenant.id);
     const jobId = `job_${jobs.length + 1}`;
     const isFirst = !seenSenders.has(optKey);
     seenSenders.add(optKey);
     const job = {
       jobId, tenantId: tenant.id, channel: 'sms', sender: from, to,
-      body, status: 'unverified', sigil, createdAt: new Date(ts).toISOString(),
+      body, bodyForDispatch: sealed.tokenized, sealbox: sealed.audit,
+      status: 'unverified', sigil, createdAt: new Date(ts).toISOString(),
     };
     jobs.push(job);
     const reply = isFirst
@@ -223,6 +231,8 @@ function createSmsHandler(options) {
     buildTwilioMessageRequest,
     sendReplyViaApi: (args) => sendReplyViaApi({ accountSid, authToken, transport: sendTransport, ...args }),
     getJobs: () => jobs.slice(),
+    getSealboxAuditLog: () => sealbox.getAuditLog(),
+    detokenizeForChannel: (text, tenantId) => sealbox.detokenize(text, tenantId),
     isOptedOut: (tenantId, sender) => optedOut.has(`${tenantId}:${normalizePhone(sender)}`),
   };
 }
