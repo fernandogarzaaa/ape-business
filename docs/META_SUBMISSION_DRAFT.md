@@ -31,7 +31,10 @@ Untrusted tools are blocked. Both outcomes go to the audit trail.
 - Muse Wonder 1.0 live call verified via the Meta Model API:
   content "ok", finish stop, 79 tokens total. That proves the
   key and billing path work. It does not prove $150 credits
-  landed, and it is not yet a Wonder call inside the agent loop.
+  landed. Wonder-in-loop is now also verified in the demo copy:
+  allow case finished with "wonder loop test", block case recorded
+  two sigil_blocked:revoked steps and the blocked tool never ran.
+  The demo copy itself is still local, not a public repo.
 - Stripe, SMS, and AWS deploy paths in this repo are test mode
   and dry run only, with tests passing. No real charge, no real
   AWS resource, no real SMS sent. Do not claim otherwise.
@@ -53,7 +56,8 @@ Untrusted tools are blocked. Both outcomes go to the audit trail.
 - [ ] Gate threshold confirmed by Inan
 - [ ] Problem statement chosen by Inan
 - [ ] Public GitHub repo chosen by Inan
-- [ ] Wonder call inside the agent loop, tested
+- [x] Wonder call inside the agent loop, tested (allow and block,
+      demo copy local)
 - [ ] 3-minute demo video, showing onboarding, identity, trust
       gate allow and block, and a ledger receipt
 - [ ] Project description, from verified claims only
