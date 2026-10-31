@@ -5,7 +5,10 @@
 // (server.name ape-mcp, capabilities, tools list), runs deploy in
 // dry-run mode, runs the health check against the stub, runs rollback
 // in dry-run mode, and asserts scope, order, and redaction.
-// Also checks build-image.sh fails loud without docker (exit 2).
+// Also checks build-image.sh: fails loud without docker (exit 2), or
+// validates its Dockerfile with --check when docker is present, so the
+// dry run never attempts a real image build and never passes by
+// accident on a machine that happens to have docker installed.
 // Usage: node dry-run.js <tenant-id>   (default tn_dryrun1)
 'use strict';
 const { spawnSync, spawn } = require('node:child_process');
@@ -58,8 +61,11 @@ async function main() {
   const rbSeq = JSON.parse(readFileSync(join(dir, 'rollback-calls.json'), 'utf8')).calls.map((c) => `${c.service}:${c.action}`);
   check('rollback reverse order', JSON.stringify(rbSeq) === JSON.stringify(['ecs:StopTask', 'secretsmanager:DeleteSecret', 'logs:DeleteLogGroup', 'iam:DeleteRolePolicy', 'iam:DeleteRole']), rbSeq.join(','));
 
-  const build = spawnSync('sh', [join(dir, 'build-image.sh'), 'dryrun'], { encoding: 'utf8' });
-  check('build-image fails loud without docker (exit 2)', build.status === 2, (build.stderr || '').slice(0, 200));
+  const dockerPresent = spawnSync('sh', ['-c', 'command -v docker'], { encoding: 'utf8' }).status === 0;
+  const build = dockerPresent
+    ? spawnSync('sh', [join(dir, 'build-image.sh'), '--check'], { encoding: 'utf8' })
+    : spawnSync('sh', [join(dir, 'build-image.sh'), 'dryrun'], { encoding: 'utf8' });
+  check('build-image check (exit 2 without docker, exit 0 with --check when docker present)', dockerPresent ? build.status === 0 : build.status === 2, ((build.stdout || '') + (build.stderr || '')).slice(0, 200));
 
   stub.close();
   const report = { tenant, stubBase: base, deployCalls: seq, rollbackCalls: rbSeq, healthStdout: health.stdout.trim(), checks, allPass: checks.every((c) => c.ok) };
