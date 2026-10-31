@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>APE MCP - Give your business its own agent</title>
+<style>
+body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:920px;margin:0 auto;padding:24px;line-height:1.55;color:#1a1a1a}
+h1{font-size:2rem;line-height:1.2} h2{margin-top:2.5rem}
+.card{border:1px solid #ddd;border-radius:12px;padding:20px;margin:16px 0}
+label{display:block;font-weight:600;margin:14px 0 4px}
+input,select,textarea{width:100%;padding:10px;border:1px solid #bbb;border-radius:8px;font-size:1rem;box-sizing:border-box}
+input[type=checkbox]{width:auto}
+button{background:#111;color:#fff;border:0;border-radius:8px;padding:12px 18px;font-size:1rem;cursor:pointer;margin:8px 8px 0 0}
+button.secondary{background:#eee;color:#111}
+pre{background:#f4f4f4;padding:16px;border-radius:8px;overflow:auto;white-space:pre-wrap}
+.small{color:#555;font-size:.9rem}
+.step{display:none} .step.active{display:block}
+.pill{display:inline-block;background:#eef;border-radius:999px;padding:2px 10px;margin:2px;font-size:.85rem}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.conn{border:1px solid #ddd;border-radius:10px;padding:12px;cursor:pointer}
+.conn.checked{border-color:#111;background:#f7f7f7}
+.conn input{margin-right:8px}
+.timeline{border-left:3px solid #111;padding-left:16px;margin:16px 0}
+.timeline p{margin:8px 0}
+.ok{color:#0a6b2e;font-weight:700} .blocked{color:#a00;font-weight:700}
+@media(max-width:640px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<h1>APE MCP</h1>
+<p>Any business can adopt its own APE, for a new business or an existing one. Connect it to your business, and the agent learns from that connection: your products, customers, orders, messages, and records, all inside your own tenant, never shared with another business. Fill in this onboarding flow and it makes your own APE.</p>
+<p><span class="pill">Shopify</span> <span class="pill">Salesforce</span> <span class="pill">Gmail</span> <span class="pill">Database</span> <span class="pill">Calendar</span> <span class="pill">Slack</span> <span class="pill">GitHub</span></p>
+
+<h2>How adopting works</h2>
+<div class="card">
+<p><strong>1. Tell us about the business.</strong> New or existing, industry, and the job the agent should do.</p>
+<p><strong>2. Connect your business systems.</strong> Pick from the catalog. The agent starts read-only, discovers what each system holds, and builds a business profile for you to verify.</p>
+<p><strong>3. Gate every tool call with Sigil.</strong> Before a tool runs, its badge is checked. Unknown, bad signature, revoked, or above-policy tools never run.</p>
+<p><strong>4. Give the agent an identity.</strong> Name it, give it a phone number and an email address of its own, so customers can text it or email it like they would a staff member. That number and inbox belong to the agent, not to the owner's personal phone.</p>
+<p><strong>5. Set budget and safety caps.</strong> Steps, cost, and destructive actions, all capped.</p>
+<p><strong>6. Deploy your own APE.</strong> Run the bundle yourself, or request hosted provisioning when that service is live.</p>
+<p><strong>7. The agent learns, you verify.</strong> Corrections you make become the agent's memory. Nothing it learned becomes action until you confirm the profile.</p>
+</div>
+
+<h2>Onboarding: make your own APE</h2>
+<p class="small">This page saves nothing and sends nothing anywhere. Everything stays in your browser. Connectors below are a catalog to pick from. Only the web connector ships in APE today. The rest are connector templates your APE would add as YAML files, one per system, with an egress allowlist and an env referenced credential. Never paste a real secret into this page.</p>
+
+<div class="card">
+<div class="step active" id="step1">
+<h3>Step 1. Your business</h3>
+<label for="bizName">Business name</label>
+<input id="bizName" placeholder="Example: Acme Support Co.">
+<label for="bizStage">New or existing business?</label>
+<select id="bizStage"><option value="new">New business</option><option value="existing">Existing business</option></select>
+<label for="industrySelect">Industry (pick one, it suggests connectors)</label>
+<select id="industrySelect" onchange="applyPreset()">
+<option value="other">Other / custom</option>
+<option value="ecommerce">Ecommerce / retail</option>
+<option value="home">Home services</option>
+<option value="software">Software / SaaS</option>
+<option value="professional">Professional services / agency</option>
+</select>
+<label for="biz">What should your agent do, in one or two sentences?</label>
+<textarea id="biz" rows="3" placeholder="Example: Triage incoming support issues, recall past decisions, and propose a fix plan."></textarea>
+<p class="small" id="presetNote">Pick an industry above and the connector grid in Step 2 updates. You can still tick or untick anything.</p>
+</div>
+
+<div class="step" id="step2">
+<h3>Step 2. Connect your business systems</h3>
+<label for="profile">Specialist profile</label>
+<select id="profile">
+<option value="repo-triage">repo-triage: sorts out software issues, recalls past decisions, proposes a plan</option>
+<option value="research-verify">research-verify: researches a question on the web, double-checks before answering</option>
+<option value="deep-researcher">deep-researcher: deep research, one question, checked answer</option>
+<option value="code-reviewer">code-reviewer: reviews code changes</option>
+<option value="persona-validate">persona-validate: tests an experience the way different users would</option>
+<option value="planner">planner: turns a vague goal into a sequenced plan</option>
+<option value="supervisor">supervisor: supervises a multi-agent job</option>
+<option value="triage-lead">triage-lead: routes work to the right specialist per issue</option>
+</select>
+<p class="small">Tap a card to connect it. Start read-only. Writes always need confirmation. This is my suggestion order: connect the system of record first, then messages, then everything else.</p>
+<div class="grid" id="connectorGrid"></div>
+<label for="allowlist">Extra allowed hosts, one per line (optional)</label>
+<textarea id="allowlist" rows="3" placeholder="api.example.com"></textarea>
+<label for="policy">Sigil gate policy</label>
+<select id="policy">
+<option value="standard">Standard: allow low and medium, block high, critical, unknown, bad signature, revoked</option>
+<option value="strict">Strict: allow low only, block everything else</option>
+<option value="open">Open: allow low, medium, and high, block critical, unknown, bad signature, revoked</option>
+</select>
+</div>
+
+<div class="step" id="step3">
+<h3>Step 3. Budget, safety, and learning</h3>
+<label for="maxSteps">Max steps per job</label>
+<input id="maxSteps" type="number" value="50" min="1">
+<label for="maxCost">Max cost per job, USD</label>
+<input id="maxCost" type="number" value="5" min="0" step="0.5">
+<label for="destructive">Destructive actions</label>
+<select id="destructive"><option value="deny">Denied by default (recommended)</option><option value="confirm">Allowed only with confirmation</option></select>
+<label for="learnMode">What the agent learns from connections</label>
+<select id="learnMode">
+<option value="discover">Discovery first: read-only inventory, then a business profile for owner approval</option>
+<option value="full">Learn and act: discovery plus approved jobs using what it learned</option>
+</select>
+<p class="small">Learning rule: discovery pass first, owner verifies the profile, then jobs use it. Owner corrections become memory. A job that cannot fully check itself ends as unverified. Treat that as a draft.</p>
+</div>
+
+<div class="step" id="step4">
+<h3>Step 4. How will you run your APE?</h3>
+<label for="deploy">Deployment choice</label>
+<select id="deploy">
+<option value="self">I run it myself (recommended first): download the bundle, run it on my machine or server</option>
+<option value="hosted">Host it for me: request hosted provisioning (needs a provisioning service, not live yet)</option>
+</select>
+<p class="small">Self-run keeps your data and ledger on your own machine. Hosted provisioning would spin up one isolated APE per business, with its own endpoint, token, and ledger. That backend does not exist yet, so this page does not pretend to provision a live server.</p>
+</div>
+
+<div class="step" id="step5">
+<h3>Step 5. Give your agent an identity</h3>
+<p>This is the friction killer. Customers do not need a new app, an account, or to learn MCP. They text or email the agent, the same way they would text or email a person on your team.</p>
+<label for="agentName">Agent name (what customers call it)</label>
+<input id="agentName" placeholder="Example: Maya">
+<label for="agentEmail">Agent email address</label>
+<input id="agentEmail" placeholder="Example: maya@yourbusiness.com">
+<p class="small">Leave blank and the bundle suggests one from the agent name and business name. Use an address you control for the real agent, either on your own domain or a dedicated agent domain. Never use the owner's personal inbox as the agent inbox.</p>
+<label for="agentPhone">Agent phone number</label>
+<input id="agentPhone" placeholder="Example: +1 555 010 1234">
+<p class="small">This is a number provisioned for the agent, not your personal number. In the real service it would be rented from an SMS gateway, one number per tenant, so you can keep it, change it, or disconnect it without touching your own phone. In this prototype, type the number you want shown.</p>
+<label>How customers can reach the agent</label>
+<p><label><input type="checkbox" class="channel" value="sms" checked> Text (SMS)</label></p>
+<p><label><input type="checkbox" class="channel" value="email" checked> Email</label></p>
+<p><label><input type="checkbox" class="channel" value="agentcard" checked> Agent to agent (agent card and MCP endpoint)</label></p>
+<label for="agentIntro">What the agent says first</label>
+<input id="agentIntro" placeholder="Example: Hi, I am Maya, the AI assistant for Acme. How can I help?">
+<p class="small">The agent must identify itself as an AI agent in its first message, every time. It never pretends to be a human employee. Every text or email becomes one APE job, with a budget, a Sigil gate on every tool call, and a receipt in the ledger.</p>
+</div>
+
+<div class="step" id="step6">
+<h3>Step 6. Try it: connect, learn, and make your APE</h3>
+<p>First, simulate what happens when your agent connects. This is a simulation in your browser, not a real connection to your systems. No data leaves this page.</p>
+<button onclick="runLearnSim()">Connect and learn (simulation)</button>
+<div id="simOutput"></div>
+<hr>
+<button onclick="generate()">Make my APE bundle</button>
+<p class="small">Press Make my APE bundle for the final files and your browser generated bearer token. Save that token. It is shown once.</p>
+<h4>Profile (agent-profile.yaml)</h4>
+<pre id="outYaml">Fill in Steps 1 to 4, then press Make my APE bundle.</pre>
+<button class="secondary" onclick="download('agent-profile.yaml', document.getElementById('outYaml').textContent)">Download profile</button>
+<h4>Connectors (connectors.yaml)</h4>
+<pre id="outConn">Fill in Steps 1 to 4, then press Make my APE bundle.</pre>
+<button class="secondary" onclick="download('connectors.yaml', document.getElementById('outConn').textContent)">Download connectors</button>
+<h4>Agent card (agent-card.json)</h4>
+<pre id="outCard">Fill in Steps 1 to 4, then press Make my APE bundle.</pre>
+<button class="secondary" onclick="download('agent-card.json', document.getElementById('outCard').textContent)">Download agent card</button>
+<h4>Deployment guide (DEPLOY.md)</h4>
+<pre id="outDeploy">Fill in Steps 1 to 4, then press Make my APE bundle.</pre>
+<button class="secondary" onclick="download('DEPLOY.md', document.getElementById('outDeploy').textContent)">Download guide</button>
+<h4>Environment template (.env)</h4>
+<pre id="outEnv">Fill in Steps 1 to 4, then press Make my APE bundle.</pre>
+<button class="secondary" onclick="download('ape.env', document.getElementById('outEnv').textContent)">Download env template</button>
+</div>
+
+<p>
+<button class="secondary" onclick="show(current - 1)">Back</button>
+<button onclick="next()">Next</button>
+</p>
+<p class="small" id="stepLabel">Step 1 of 6</p>
+<p class="small">Live bundle preview: change any field, then return to Step 6 and press Make my APE bundle for the final version.</p>
+</div>
+
+<h2>My connector suggestions, in order</h2>
+<div class="card">
+<p><strong>1. System of record first.</strong> Shopify for a store, Salesforce for a sales business, your database for an operations business. The agent cannot learn your business without this.</p>
+<p><strong>2. Messages second.</strong> Gmail and Calendar. This is where customer intent, follow ups, and commitments actually live.</p>
+<p><strong>3. Team knowledge third.</strong> Slack, Sheets, GitHub. This is how the agent learns how your team already works.</p>
+<p><strong>4. Read-only first, always.</strong> Discovery pass, owner verified profile, then jobs. Writes and money moves need explicit confirmation, every time, until the owner raises the cap.</p>
+<p><strong>5. One credential per system, per tenant.</strong> OAuth where the service offers it (Gmail, Shopify, Salesforce). Env referenced tokens elsewhere. Never a shared key across businesses, never a secret in a profile file.</p>
+</div>
+
+<h2>Security, in layers</h2>
+<div class="card">
+<p><strong>1. One tenant, one agent, one vault.</strong> Your agent, ledger, secrets, and storage are yours alone. No shared memory, no shared keys, no learning from another business.</p>
+<p><strong>2. Sigil on every tool call.</strong> Before a tool runs, its badge is checked: signature, version, and revocation. Unknown, bad signature, revoked, or above-policy tools never run.</p>
+<p><strong>3. Egress allowlist.</strong> Each connector may only reach the hosts you allowed. Everything else is refused.</p>
+<p><strong>4. Sealbox content gate, Day 1.</strong> Before your data leaves your tenant to a third party, a local pass replaces names, emails, phone numbers, and client identifiers with tenant-scoped tokens, and only schema-fixed events cross. The token map lives only in your vault, never in a log. This is an integration into APE, not a separate product, and it ships in Phase 1, not as a later add-on.</p>
+<p><strong>5. Secrets stay secret.</strong> Profile and connector files carry env names only, never secret values. One credential per system, per tenant, revocable on disconnect.</p>
+<p><strong>6. Audit you can export.</strong> Every job has a run ID, an outcome, and a receipt. You can export your ledger, and a stop button stops a task.</p>
+<p><strong>7. Humans gate the stakes.</strong> Spend above a cap, money moves, commitments to third parties, and destructive actions always need a human, no matter how trusted the agent is.</p>
+<p class="small">Full design, including what Sealbox does not mitigate and what we may not claim yet, lives in the SECURITY.md design document for this product. It is not published yet, and neither is this page.</p>
+</div>
+
+<h2>Honest limits</h2>
+<div class="card">
+<ul>
+<li>GitHub Pages hosts static pages only. It cannot run the APE agent runtime, connect to your Shopify or Salesforce account, or provision a live server.</li>
+<li>Only the web connector ships in APE today. Shopify, Salesforce, Gmail, database, and the rest are catalog templates here, not shipped connectors yet.</li>
+<li>The Connect and learn button is a simulation. It shows the shape of discovery, not your real products, orders, or emails.</li>
+<li>Learning stays inside one tenant. Your agent must never learn from another business's data, and disconnecting a system must revoke its access and stop future reads.</li>
+<li>APE's A2A bridge is v1: synchronous request and response plus polling, no streaming and no push notifications.</li>
+<li>Sealbox is a Day 1 integration in Phase 1, not a live gate in this prototype. The design exists, the redaction pass is not yet wired into an APE job, so do not read this page as claiming PII never leaves a business today.</li>
+<li>Phone numbers and inboxes in this wizard are placeholders you type, not provisioned numbers or mailboxes. A real agent number needs an SMS gateway rental per tenant, and a real agent inbox needs inbound email handling. Both add per-tenant cost and, in the US, SMS registration rules. Budget for them in pricing before selling text or email access.</li>
+<li>The agent must identify itself as an AI agent in its first message. It never presents as a human employee.</li>
+</ul>
+</div>
+
+<script>
+const CONNECTORS = [
+  {id:'web', name:'Web search', auth:'None', mode:'Read-only', ships:'Ships today', learn:'Public research: what the world says, checked before the agent repeats it.'},
+  {id:'shopify', name:'Shopify', auth:'OAuth', mode:'Read first, writes need confirmation', ships:'Template', learn:'Products, inventory, orders, and customers. The agent learns what you sell and who buys it.'},
+  {id:'salesforce', name:'Salesforce', auth:'OAuth', mode:'Read first, updates need confirmation', ships:'Template', learn:'Accounts, contacts, opportunities, and pipeline. The agent learns who you sell to and what stage each deal is in.'},
+  {id:'gmail', name:'Gmail', auth:'OAuth', mode:'Read first, sending needs confirmation', ships:'Template', learn:'Customer threads, follow ups, and commitments. The agent learns intent, not just keywords.'},
+  {id:'calendar', name:'Calendar', auth:'OAuth', mode:'Read first, booking needs confirmation', ships:'Template', learn:'Meetings, deadlines, and availability. The agent learns when things actually happen.'},
+  {id:'database', name:'Database (Postgres / MySQL)', auth:'Connection string, env reference only', mode:'Read-only queries by default', ships:'Template', learn:'Schema and tables first, then rows it is allowed to read. The agent learns your real records, not a summary of them.'},
+  {id:'slack', name:'Slack', auth:'OAuth', mode:'Read first, posting needs confirmation', ships:'Template', learn:'Channels and team knowledge. The agent learns how your team already decides.'},
+  {id:'sheets', name:'Sheets / Drive', auth:'OAuth', mode:'Read first', ships:'Template', learn:'Reports, price lists, and trackers. The agent learns the numbers your team already trusts.'},
+  {id:'github', name:'GitHub', auth:'Bearer token, env reference only', mode:'Read first, writes need confirmation', ships:'Template', learn:'Repos, issues, and past decisions. The agent learns what was already decided and why.'},
+  {id:'custom', name:'Your own API', auth:'Bearer token, env reference only', mode:'Read first, writes need confirmation', ships:'Template', learn:'Whatever your own system exposes. Badge unknown until verified, so Sigil blocks it until it is badged.'}
+];
+const PRESETS = {
+  ecommerce: ['web','shopify','gmail','sheets'],
+  home: ['web','gmail','calendar','database'],
+  software: ['web','github','slack','gmail'],
+  professional: ['web','salesforce','gmail','calendar'],
+  other: ['web']
+};
+let current = 1;
+let savedToken = '';
+function show(n){
+  current = Math.max(1, Math.min(6, n));
+  for (let i = 1; i <= 6; i++) document.getElementById('step' + i).classList.toggle('active', i === current);
+  document.getElementById('stepLabel').textContent = 'Step ' + current + ' of 6';
+}
+function slug(s){ return String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'agent'; }
+function agentIdentity(){
+  const bizName = document.getElementById('bizName').value.trim() || 'My Business';
+  const name = document.getElementById('agentName').value.trim() || ('Assistant for ' + bizName);
+  const email = document.getElementById('agentEmail').value.trim() || (slug(name) + '@' + slug(bizName) + '.example');
+  const phone = document.getElementById('agentPhone').value.trim() || '(not set in this prototype)';
+  const intro = document.getElementById('agentIntro').value.trim() || ('Hi, I am ' + name + ', the AI assistant for ' + bizName + '. How can I help?');
+  const channels = Array.from(document.querySelectorAll('.channel:checked')).map(cb => cb.value);
+  return { name, email, phone, intro, channels };
+}
+function next(){ show(current + 1); }
+function renderConnectors(){
+  const grid = document.getElementById('connectorGrid');
+  grid.innerHTML = CONNECTORS.map(c =>
+    '<label class="conn" id="conn-' + c.id + '"><input type="checkbox" class="connector" value="' + c.id + '" ' + (c.id === 'web' ? 'checked' : '') + ' onchange="syncConnStyles()"> <strong>' + c.name + '</strong><br><span class="small">Auth: ' + c.auth + ' | ' + c.mode + ' | ' + c.ships + '<br>' + c.learn + '</span></label>'
+  ).join('');
+  syncConnStyles();
+}
+function syncConnStyles(){
+  document.querySelectorAll('.connector').forEach(cb => {
+    const card = document.getElementById('conn-' + cb.value);
+    if (card) card.classList.toggle('checked', cb.checked);
+  });
+}
+function applyPreset(){
+  const kind = document.getElementById('industrySelect').value;
+  const wanted = PRESETS[kind] || ['web'];
+  document.querySelectorAll('.connector').forEach(cb => { cb.checked = wanted.includes(cb.value); });
+  syncConnStyles();
+  document.getElementById('presetNote').textContent = 'Suggested connectors updated for ' + kind + '. You can still tick or untick anything.';
+}
+function selectedConnectors(){
+  return Array.from(document.querySelectorAll('.connector:checked')).map(cb => CONNECTORS.find(c => c.id === cb.value)).filter(Boolean);
+}
+function esc(s){ return String(s).replace(/\\/g, '\\\\'); }
+function makeToken(){
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+function policyAllows(level, policy){
+  if (policy === 'strict') return level === 'low';
+  if (policy === 'open') return ['low','medium','high'].includes(level);
+  return ['low','medium'].includes(level);
+}
+function runLearnSim(){
+  const bizName = document.getElementById('bizName').value.trim() || 'Your business';
+  const policy = document.getElementById('policy').value;
+  const conns = selectedConnectors();
+  if (!conns.length){
+    document.getElementById('simOutput').innerHTML = '<p class="blocked">No connectors selected. Pick at least one in Step 2, then run the simulation again.</p>';
+    return;
+  }
+  let html = '<div class="timeline">';
+  html += '<p><strong>Step 1. Discover (read-only).</strong> The agent inventories each connected system. Nothing is written, nothing is sent.</p>';
+  html += '<p><strong>Step 2. Sigil check.</strong> Every connector server badge is verified before any read.</p>';
+  conns.forEach(c => {
+    const level = c.id === 'custom' ? 'unknown' : (c.id === 'web' || c.id === 'shopify' || c.id === 'salesforce' || c.id === 'gmail' || c.id === 'calendar' ? 'low' : 'medium');
+    const allowed = c.id === 'custom' ? false : policyAllows(level, policy);
+    html += '<p>' + c.name + ': badge ' + level + ' - ' + (allowed ? '<span class="ok">ALLOW</span>, read proceeds' : '<span class="blocked">BLOCK</span>, skipped until badged or policy changes') + '.</p>';
+  });
+  html += '<p><strong>Step 3. Learn.</strong> From the allowed connections, the agent drafts a business profile for ' + esc(bizName) + ':</p><ul>';
+  conns.forEach(c => { if (c.id !== 'custom') html += '<li><strong>' + c.name + ':</strong> ' + c.learn + '</li>'; });
+  html += '</ul>';
+  html += '<p><strong>Step 4. Owner verifies.</strong> Outcome status: <strong>unverified</strong> (draft). You correct it, and your corrections become memory. Only then do jobs act on what it learned.</p>';
+  const id = agentIdentity();
+  html += '<p><strong>Step 5. Identity.</strong> Customers reach ' + esc(id.name) + ' by text at ' + esc(id.phone) + ', by email at ' + esc(id.email) + ', or agent to agent via its agent card. Channels selected: ' + (id.channels.length ? id.channels.join(', ') : 'none') + '. First message: "' + esc(id.intro) + '"</p>';
+  html += '</div><p class="small">Simulation only. No real Shopify, Salesforce, Gmail, or database was contacted.</p>';
+  document.getElementById('simOutput').innerHTML = html;
+}
+function generate(){
+  const bizName = document.getElementById('bizName').value.trim() || 'My Business';
+  const bizStage = document.getElementById('bizStage').value;
+  const industry = document.getElementById('industrySelect').value;
+  const biz = document.getElementById('biz').value.trim() || 'Describe the job this agent does.';
+  const profile = document.getElementById('profile') ? document.getElementById('profile').value : 'repo-triage';
+  const policy = document.getElementById('policy').value;
+  const maxSteps = document.getElementById('maxSteps').value || 50;
+  const maxCost = document.getElementById('maxCost').value || 5;
+  const destructive = document.getElementById('destructive').value;
+  const deploy = document.getElementById('deploy').value;
+  const learnMode = document.getElementById('learnMode').value;
+  const hosts = document.getElementById('allowlist').value.split('\n').map(x => x.trim()).filter(Boolean);
+  const conns = selectedConnectors();
+  const identity = agentIdentity();
+  if (!savedToken) savedToken = makeToken();
+  let policyText = policy === 'strict' ? 'allow: [low]\nblock: [medium, high, critical, unknown, bad_signature, revoked]' : policy === 'open' ? 'allow: [low, medium, high]\nblock: [critical, unknown, bad_signature, revoked]' : 'allow: [low, medium]\nblock: [high, critical, unknown, bad_signature, revoked]';
+  const yaml = 'business:\n  name: "' + esc(bizName) + '"\n  stage: ' + bizStage + '\n  industry: ' + industry + '\n' +
+    'agent:\n  profile: ' + profile + '\n  objective: "' + esc(biz) + '"\n' +
+    'identity:\n  name: "' + esc(identity.name) + '"\n  email: "' + esc(identity.email) + '"\n  phone: "' + esc(identity.phone) + '"\n  channels: [' + identity.channels.join(', ') + ']\n  first_message: "' + esc(identity.intro) + '"\n  identifies_as: "AI agent, never a human employee"\n' +
+    'learning: ' + learnMode + '\n' +
+    'budget:\n  max_steps: ' + maxSteps + '\n  max_cost_usd: ' + maxCost + '\n' +
+    'destructive: ' + destructive + '\n' +
+    'sigil:\n  ' + policyText.replace(/\n/g, '\n  ') + '\n';
+  document.getElementById('outYaml').textContent = yaml;
+  document.getElementById('outConn').textContent = conns.map(c =>
+    '- name: ' + c.id + '\n  auth: ' + c.auth + '\n  mode: ' + c.mode + '\n  egress_allow: [set per connector host]\n  # Secret values are never in this file. Reference env names only.'
+  ).join('\n') + (hosts.length ? '\n# Extra allowed hosts:\n' + hosts.map(h => '# - ' + h).join('\n') : '') + '\n';
+  document.getElementById('outCard').textContent = JSON.stringify({ name: identity.name, business: bizName, description: biz, version: '1.0.0', contact: { email: identity.email, phone: identity.phone, channels: identity.channels }, skills: [{ id: profile, name: profile, description: biz, tags: ['agent', 'ape'] }], connectors: conns.map(c => c.id), capabilities: { streaming: false, pushNotifications: false } }, null, 2);
+  document.getElementById('outDeploy').textContent =
+    '# Deploy your APE: ' + bizName + '\n\n' +
+    '## Option A: run it yourself (works today)\n' +
+    '1. Install APE on your machine or server.\n' +
+    '2. Put agent-profile.yaml and connectors.yaml in your APE config folder.\n' +
+    '3. Set APE_REQUIRE_AUTH=1 and APE_TOKENS from ape.env. Never run a public endpoint without auth.\n' +
+    '4. Connect one system at a time, read-only first. Verify the discovery profile before any write.\n' +
+    '5. Identity: publish ' + identity.name + ' with email ' + identity.email + ' and phone ' + identity.phone + '. Every inbound text or email becomes one APE job, gated by Sigil, logged with a receipt. The agent introduces itself as an AI agent.\n' +
+    '6. Start: ape-mcp --http 8787, behind Caddy for TLS, bound to loopback only.\n\n' +
+    '## Option B: hosted provisioning (not live yet)\n' +
+    'A provisioning service would take this bundle, spin up one isolated APE for ' + bizName + ', and return an endpoint and a fresh bearer token. ' +
+    'Your deployment choice in this wizard was: ' + deploy + '.\n';
+  document.getElementById('outEnv').textContent = 'APE_REQUIRE_AUTH=1\nAPE_TOKENS=' + savedToken + '\nAPE_PORT=8787\n# Save this token now. It was generated in your browser and sent nowhere.\n# Add one env name per connector, for example: SHOPIFY_TOKEN, SALESFORCE_TOKEN, GMAIL_OAUTH. Values stay in your vault, never in YAML.\n';
+}
+function download(name, text){
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], {type: 'text/plain'}));
+  a.download = name; a.click(); URL.revokeObjectURL(a.href);
+}
+renderConnectors();
+</script>
+</body>
+</html>

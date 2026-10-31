@@ -1,0 +1,5 @@
+# Standalone path only (no ALB). Caddy automatic HTTPS.
+# Set APE_PUBLIC_DOMAIN in the environment that starts Caddy.
+{$APE_PUBLIC_DOMAIN} {
+  reverse_proxy 127.0.0.1:8787
+}

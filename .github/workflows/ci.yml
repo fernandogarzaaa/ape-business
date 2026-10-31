@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax check all JavaScript
+        run: |
+          for f in $(find provisioning site -name '*.js' -not -path '*/node_modules/*'); do
+            node --check "$f" || exit 1
+          done
+      - name: SMS tests
+        run: node provisioning/sms/test-sms.js
+      - name: Stripe tests
+        run: node provisioning/stripe/test-stripe.js
+      - name: AWS dry run
+        run: node provisioning/aws/dry-run.js
+      - name: No secret values in repo
+        run: |
+          # Env names are allowed. Real-looking secret values are not.
+          if grep -RInE 'sk_live_[A-Za-z0-9]{16,}|sk_test_[A-Za-z0-9]{16,}|whsec_[A-Za-z0-9]{16,}|AKIA[0-9A-Z]{16}' provisioning site --exclude-dir=node_modules; then
+            echo "Possible secret value found. Remove it and use an env name instead."
+            exit 1
+          fi
+          echo "Secret scan passed (env names only)."

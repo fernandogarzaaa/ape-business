@@ -1,0 +1,5 @@
+# Fargate path: ALB terminates TLS. Caddy listens on 8080 inside the
+# task network namespace and proxies to APE on loopback 8787.
+:8080 {
+  reverse_proxy 127.0.0.1:8787
+}
