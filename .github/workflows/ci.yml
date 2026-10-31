@@ -27,6 +27,8 @@ jobs:
         run: node provisioning/stripe/test-stripe.js
       - name: AWS dry run
         run: node provisioning/aws/dry-run.js
+      - name: Phase 1 exit test (onboarding to text and email receipt)
+        run: node provisioning/e2e-test.js
       - name: No secret values in repo
         run: |
           # Env names are allowed. Real-looking secret values are not.
