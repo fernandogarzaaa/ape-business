@@ -21,6 +21,8 @@ jobs:
           done
       - name: SMS tests
         run: node provisioning/sms/test-sms.js
+      - name: Email tests
+        run: node provisioning/email/test-email.js
       - name: Stripe tests
         run: node provisioning/stripe/test-stripe.js
       - name: AWS dry run

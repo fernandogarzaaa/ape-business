@@ -149,6 +149,13 @@ Known gaps, do not hide them:
 
 ## Phase log
 
+- 2026-10-31, Email intake: provisioning/email/email-intake.js
+  added, mirroring SMS. One job per accepted email, tenant by
+  agent address, spam keyword and auth-fail screen, unsubscribe
+  and opt-out, rate limit, Sigil intake record, Sealbox tokens
+  in dispatch subject and body, reply returned as draft only,
+  never sent by this module. Email tests: 8 checks, all pass.
+  CI now runs the email tests too.
 - 2026-10-31, Sealbox SMS wiring: provisioning/sealbox.js added
   and wired into the SMS webhook. Dispatch bodies now carry
   tenant-scoped tokens for emails and phones, not raw PII, with a
