@@ -104,8 +104,54 @@ async function main() {
   assert.strictEqual(r10.reason, 'unknown_tenant');
   assert.strictEqual(handler.getJobs().length, 2);
 
+  // 11. Sealbox: a message with an email and a phone number is
+  // tokenized in the dispatch body, stable on repeat, and the
+  // audit log carries no raw PII.
+  const h3 = createSmsHandler({
+    authToken: FAKE_TOKEN, accountSid: FAKE_SID, publicUrl: URL,
+    tenants: { [TENANT_TO]: { id: 'tn_test', agentName: 'Maya', businessName: 'Test Store' } },
+  });
+  const p11 = { To: TENANT_TO, From: SENDER, Body: 'Reach me at jane@example.com or 555-123-4567 please', MessageSid: 'SM_FAKE_011' };
+  const r11 = await h3.handleWebhook({ url: URL, params: p11, signature: sign(p11), now: 9000 });
+  console.log('11 sealbox-tokenize:', JSON.stringify(r11));
+  assert.strictEqual(r11.jobId, 'job_1');
+  const job11 = h3.getJobs()[0];
+  assert.ok(!job11.bodyForDispatch.includes('jane@example.com'), 'dispatch body must not contain raw email');
+  assert.ok(!job11.bodyForDispatch.includes('555-123-4567'), 'dispatch body must not contain raw phone');
+  assert.ok(job11.bodyForDispatch.includes('<EMAIL_1>'), 'email must be tokenized');
+  assert.ok(job11.bodyForDispatch.includes('<PHONE_1>'), 'phone must be tokenized');
+  assert.strictEqual(job11.sealbox.event, 'sealbox_tokenize');
+  assert.ok(!JSON.stringify(job11.sealbox).includes('jane@example.com'), 'audit must not contain raw PII');
+
+  // 12. Sealbox: repeat values reuse the same tokens, and the
+  // customer channel can resolve them back.
+  const p12 = { To: TENANT_TO, From: SENDER, Body: 'Again: jane@example.com', MessageSid: 'SM_FAKE_012' };
+  const r12 = await h3.handleWebhook({ url: URL, params: p12, signature: sign(p12), now: 9100 });
+  assert.strictEqual(r12.jobId, 'job_2');
+  assert.ok(h3.getJobs()[1].bodyForDispatch.includes('<EMAIL_1>'), 'repeat email must reuse token');
+  assert.strictEqual(h3.detokenizeForChannel(h3.getJobs()[1].bodyForDispatch, 'tn_test'), 'Again: jane@example.com');
+
+  // 13. Sealbox: token maps are tenant-scoped. Tenant B tokenizes
+  // a different email, and resolving B's token inside tenant A
+  // does not leak B's value: it resolves to A's own token map.
+  const h4 = createSmsHandler({
+    authToken: FAKE_TOKEN, accountSid: FAKE_SID, publicUrl: URL,
+    tenants: {
+      [TENANT_TO]: { id: 'tn_a', agentName: 'Maya', businessName: 'Store A' },
+      '+15550100002': { id: 'tn_b', agentName: 'Leo', businessName: 'Store B' },
+    },
+  });
+  const pa = { To: TENANT_TO, From: SENDER, Body: 'jane@example.com', MessageSid: 'SM_FAKE_013A' };
+  const pb = { To: '+15550100002', From: SENDER, Body: 'other@example.com', MessageSid: 'SM_FAKE_013B' };
+  await h4.handleWebhook({ url: URL, params: pa, signature: sign(pa), now: 9200 });
+  await h4.handleWebhook({ url: URL, params: pb, signature: sign(pb), now: 9300 });
+  assert.strictEqual(h4.getJobs()[1].tenantId, 'tn_b');
+  assert.strictEqual(h4.detokenizeForChannel('<EMAIL_1>', 'tn_a'), 'jane@example.com');
+  assert.strictEqual(h4.detokenizeForChannel('<EMAIL_1>', 'tn_b'), 'other@example.com');
+  assert.ok(!h4.detokenizeForChannel('<EMAIL_1>', 'tn_a').includes('other@example.com'), 'tenant A must never resolve tenant B values');
+
   console.log('LEDGER:', JSON.stringify(handler.getJobs(), null, 2));
-  console.log('ALL SMS TESTS PASSED: 10 checks, jobs=2, duplicates blocked, STOP/START verified');
+  console.log('ALL SMS TESTS PASSED: 13 checks, jobs=2, duplicates blocked, STOP/START verified, Sealbox tokenization verified');
 }
 
 main().catch((e) => { console.error('TEST FAILED:', e); process.exit(1); });

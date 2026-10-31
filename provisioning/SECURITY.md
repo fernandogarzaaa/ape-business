@@ -186,7 +186,7 @@ What Sealbox does not mitigate, stated plainly:
 | APE egress allowlist, confirm gate, budgets, ledger | Shipped patterns in APE |
 | Tenant IAM role per tenant | Designed in the pipeline, not yet provisioned for real |
 | Encrypted per-tenant vault | Planned for Phase 1, prototype files are plain |
-| Sealbox content gate | Design exists, Day 1 integration into APE, not yet wired |
+| Sealbox content gate | Wired into SMS intake (provisioning/sealbox.js, 13 SMS checks pass): emails and phones tokenized per tenant, audit log carries no raw PII, token map in memory per handler. Production vault store still to do, so do not yet claim PII never leaves a business |
 | SMS gateway number rental, inbound email handling | Not provisioned, prototype placeholders only |
 | Retention and deletion paragraph | To be written, Phase 1 gate |
 | Public security page | This document first, site section second, neither published yet |
