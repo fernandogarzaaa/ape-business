@@ -98,8 +98,7 @@ Not done, in order:
    Scope changed 2026-10-31: full product v1, not demo alone.
    Still open: gate threshold confirmation, problem statement
    choice, public repo for the demo copy (this repo is the
-   business platform repo, not the Meta demo copy), Wonder call
-   inside the agent loop, 3-minute video, submission text.
+   business platform repo, not the Meta demo copy), 3-minute video, submission text.
    The Meta demo copy lives separately at
    ~/workspace/ape-mcp-sigil-demo, with Sigil gate and Wonder
    provider wiring. Do not conflate the two repos in submission
@@ -149,6 +148,17 @@ Known gaps, do not hide them:
 
 ## Phase log
 
+- 2026-10-31, Bot review fixes (PR #6, unmerged at write time):
+  addressed all 6 Codex findings on PRs #3, #4, #5. Sealbox
+  phone gate now catches contiguous numbers (+14155552671,
+  14155552671, 4155552671) and literal token text is marked
+  :literal so it can never resolve to an earlier message's
+  value. Email dedup is scoped to the tenant after the
+  recipient is resolved, opt-in now requires an explicit START
+  command, and Authentication-Results is read case-insensitively.
+  Docs fixed too: the submission draft and handoff no longer
+  list the Wonder loop as not done. SMS tests 15 checks, email
+  tests 10 checks, Stripe 12, all pass locally.
 - 2026-10-31, Email intake: provisioning/email/email-intake.js
   added, mirroring SMS. One job per accepted email, tenant by
   agent address, spam keyword and auth-fail screen, unsubscribe

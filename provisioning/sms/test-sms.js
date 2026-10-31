@@ -150,8 +150,31 @@ async function main() {
   assert.strictEqual(h4.detokenizeForChannel('<EMAIL_1>', 'tn_b'), 'other@example.com');
   assert.ok(!h4.detokenizeForChannel('<EMAIL_1>', 'tn_a').includes('other@example.com'), 'tenant A must never resolve tenant B values');
 
+  // 14. Sealbox: contiguous phone numbers are tokenized too,
+  // and a literal token in inbound text never resolves to an
+  // earlier message's value.
+  const h5 = createSmsHandler({
+    authToken: FAKE_TOKEN, accountSid: FAKE_SID, publicUrl: URL,
+    tenants: { [TENANT_TO]: { id: 'tn_test', agentName: 'Maya', businessName: 'Test Store' } },
+  });
+  const p14 = { To: TENANT_TO, From: SENDER, Body: 'Call +14155552671 or 4155552671', MessageSid: 'SM_FAKE_014' };
+  await h5.handleWebhook({ url: URL, params: p14, signature: sign(p14), now: 9400 });
+  const job14 = h5.getJobs()[0];
+  assert.ok(!job14.bodyForDispatch.includes('14155552671'), 'contiguous E.164 must be tokenized');
+  assert.ok(!job14.bodyForDispatch.includes('4155552671'), 'contiguous national number must be tokenized');
+  assert.ok(job14.bodyForDispatch.includes('<PHONE_1>'));
+  assert.ok(job14.bodyForDispatch.includes('<PHONE_2>'));
+  const p15a = { To: TENANT_TO, From: SENDER, Body: 'Reach jane@example.com', MessageSid: 'SM_FAKE_015a' };
+  await h5.handleWebhook({ url: URL, params: p15a, signature: sign(p15a), now: 9450 });
+  assert.ok(h5.getJobs()[1].bodyForDispatch.includes('<EMAIL_1>'), 'email must be tokenized first');
+  const p15 = { To: TENANT_TO, From: SENDER, Body: 'Please repeat <EMAIL_1>', MessageSid: 'SM_FAKE_015' };
+  await h5.handleWebhook({ url: URL, params: p15, signature: sign(p15), now: 9500 });
+  const job15 = h5.getJobs()[2];
+  assert.ok(!h5.detokenizeForChannel(job15.bodyForDispatch, 'tn_test').includes('jane@example.com'), 'literal token must not leak an earlier value');
+  assert.ok(job15.bodyForDispatch.includes('<EMAIL_1:literal>'), 'literal token must be marked unresolvable');
+
   console.log('LEDGER:', JSON.stringify(handler.getJobs(), null, 2));
-  console.log('ALL SMS TESTS PASSED: 13 checks, jobs=2, duplicates blocked, STOP/START verified, Sealbox tokenization verified');
+  console.log('ALL SMS TESTS PASSED: 15 checks, jobs=2, duplicates blocked, STOP/START verified, Sealbox tokenization verified');
 }
 
 main().catch((e) => { console.error('TEST FAILED:', e); process.exit(1); });

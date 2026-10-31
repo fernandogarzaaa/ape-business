@@ -32,7 +32,17 @@
 const crypto = require('crypto');
 
 const EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
-const PHONE_RE = /(?:\+?1[\s\-.]?)?(?:\(?\d{3}\)?[\s\-.])?\d{3}[\s\-.]\d{4}\b/g;
+// Phone numbers, in longest-first order so a contiguous number is
+// not half-matched by the formatted pattern:
+// - E.164 with plus: +14155552671
+// - 11 contiguous digits starting with 1: 14155552671
+// - 10 contiguous digits: 4155552671
+// - Formatted: 415-555-2671, (415) 555-2671, +1 415-555-2671
+// A 10-digit run that is not a phone (an order number, for
+// example) is tokenized too. The gate is conservative on purpose:
+// a missed phone leaks PII, a tokenized order number only looks
+// odd in the dispatch body and resolves back on the channel.
+const PHONE_RE = /(?:\+1\d{10}\b|1\d{10}\b|\b\d{10}\b|(?:\+?1[\s\-.]?)?(?:\(?\d{3}\)?[\s\-.])?\d{3}[\s\-.]\d{4}\b)/g;
 
 function sha256hex(text) {
   return crypto.createHash('sha256').update(text, 'utf8').digest('hex');
@@ -60,6 +70,11 @@ function createSealboxGate() {
   function tokenize(text, tenantId) {
     const store = storeFor(tenantId);
     let tokenized = String(text ?? '');
+    // Literal token syntax in inbound text is NOT a reference.
+    // Without this, a message saying "<EMAIL_1>" would detokenize
+    // to a value from an earlier message in the same tenant.
+    // Marking it :literal keeps it visible but unresolvable.
+    tokenized = tokenized.replace(/<(EMAIL|PHONE)_\d+>/g, (m) => m.replace('>', ':literal>'));
     tokenized = tokenized.replace(EMAIL_RE, (m) => tokenFor(store, 'EMAIL', m));
     tokenized = tokenized.replace(PHONE_RE, (m) => tokenFor(store, 'PHONE', m));
     const event = {
