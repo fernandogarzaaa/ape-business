@@ -44,10 +44,11 @@ Untrusted tools are blocked. Both outcomes go to the audit trail.
 - Gate threshold confirmation. Proposed policy is block high,
   critical, unknown, bad signature, revoked, allow low and medium.
   Inan has not explicitly confirmed it.
-- Wonder call inside the agent loop. Not done yet.
 - Real Stripe, real EC2, real SMS. Code paths exist in test mode.
   Live mode is not proven.
-- PII never leaves a business. Sealbox is designed, not wired.
+- PII never leaves a business. Sealbox is wired into SMS and
+  email intake in test mode, with the token map in memory, not
+  in a production vault. That is not the same claim.
 - A badge proves competence. A badge proves identity, version,
   and risk level only.
 

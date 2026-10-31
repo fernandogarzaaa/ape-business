@@ -77,7 +77,37 @@ function main() {
   assert.strictEqual(last.reason, 'rate_limited');
   assert.strictEqual(h2.getJobs().length, 20);
 
-  console.log('ALL EMAIL TESTS PASSED: 8 checks, jobs=2, spam and opt-out verified, Sealbox tokenization verified');
+  // 9. Tenant-scoped dedup: the same message id to a second
+  // tenant creates that tenant's job, and to an unknown tenant
+  // is still rejected, not served from the first tenant's cache.
+  const h3 = createEmailHandler({
+    tenants: {
+      [AGENT]: { id: 'tn_a', agentName: 'Maya', businessName: 'Store A' },
+      'leo@teststore.invalid': { id: 'tn_b', agentName: 'Leo', businessName: 'Store B' },
+    },
+  });
+  const ra = h3.handleInbound({ to: AGENT, from: SENDER, subject: 'For A', body: 'hi', messageId: 'EM_SHARED_001', now: 11000 });
+  const rb = h3.handleInbound({ to: 'leo@teststore.invalid', from: SENDER, subject: 'For B', body: 'hi', messageId: 'EM_SHARED_001', now: 11100 });
+  assert.strictEqual(ra.jobId, 'job_1');
+  assert.strictEqual(rb.jobId, 'job_2');
+  assert.strictEqual(rb.replyDraft.includes('Leo'), true);
+  const ru = h3.handleInbound({ to: 'nobody@teststore.invalid', from: SENDER, subject: 'For A', body: 'hi', messageId: 'EM_SHARED_001', now: 11200 });
+  assert.strictEqual(ru.reason, 'unknown_tenant');
+
+  // 10. Opt-out is restored only by an explicit START, and an
+  // Authentication-Results header is read in any capitalization.
+  const h4 = createEmailHandler({
+    tenants: { [AGENT]: { id: 'tn_test', agentName: 'Maya', businessName: 'Test Store' } },
+  });
+  h4.handleInbound({ to: AGENT, from: SENDER, subject: 'unsubscribe', body: 'stop', messageId: 'EM_FAKE_O1', now: 12000 });
+  const rRestart = h4.handleInbound({ to: AGENT, from: SENDER, subject: 'Do not restart emails', body: 'Do not restart emails', messageId: 'EM_FAKE_O2', now: 12100 });
+  assert.strictEqual(rRestart.reason, 'blocked_opted_out', 'a sentence containing start must not restore opt-in');
+  const rStart = h4.handleInbound({ to: AGENT, from: SENDER, subject: 'START', body: 'START', messageId: 'EM_FAKE_O3', now: 12200 });
+  assert.strictEqual(rStart.reason, 'opted_in');
+  const rAuth = h4.handleInbound({ to: AGENT, from: SENDER, subject: 'Hi', body: 'Hi', messageId: 'EM_FAKE_O4', now: 12300, headers: { 'Authentication-Results': 'spf=fail' } });
+  assert.strictEqual(rAuth.reason, 'spam_auth_fail', 'capitalized header name must still screen');
+
+  console.log('ALL EMAIL TESTS PASSED: 10 checks, jobs=2, spam and opt-out verified, Sealbox tokenization verified');
 }
 
 main();

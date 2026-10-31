@@ -40,7 +40,12 @@ function normalizeEmail(v) {
 function isSpam({ from, subject, body, headers }) {
   const hay = `${subject || ''} ${body || ''}`.toLowerCase();
   if (SPAM_KEYWORDS.some((k) => hay.includes(k))) return 'spam_keyword';
-  const auth = String(headers?.['authentication-results'] || '').toLowerCase();
+  // Header names arrive in any capitalization from different
+  // providers. Normalize before lookup, or an explicit spf=fail
+  // under "Authentication-Results" is silently ignored.
+  const lowered = {};
+  for (const [k, v] of Object.entries(headers || {})) lowered[String(k).toLowerCase()] = v;
+  const auth = String(lowered['authentication-results'] || '').toLowerCase();
   if (auth.includes('dmarc=fail') || auth.includes('spf=fail')) return 'auth_fail';
   if (!from || !from.includes('@')) return 'bad_sender';
   return null;
@@ -81,45 +86,52 @@ function createEmailHandler(options) {
   function handleInbound(message) {
     const ts = message.now || Date.now();
     const id = message.messageId || '';
-    if (id && seenMessageIds.has(id)) return seenMessageIds.get(id);
     const to = normalizeEmail(message.to);
     const from = normalizeEmail(message.from);
     const subject = String(message.subject || '');
     const body = String(message.body || '');
+    // Recipient first, dedup second, and dedup scoped to the
+    // tenant. A global message-id cache let a second tenant's
+    // delivery return the first tenant's cached result, and let
+    // an unknown recipient bypass the unknown-tenant rejection.
     const tenant = tenants[to] || null;
     if (!tenant) {
-      const result = { status: 404, jobId: null, reason: 'unknown_tenant', replyDraft: null };
-      if (id) seenMessageIds.set(id, result);
-      return result;
+      return { status: 404, jobId: null, reason: 'unknown_tenant', replyDraft: null };
     }
+    const dedupKey = `${tenant.id}:${id}`;
+    if (id && seenMessageIds.has(dedupKey)) return seenMessageIds.get(dedupKey);
     const optKey = `${tenant.id}:${from}`;
     const spam = isSpam({ from, subject, body, headers: message.headers || {} });
     if (spam) {
       const result = { status: 200, jobId: null, reason: 'spam_' + spam, replyDraft: null };
-      if (id) seenMessageIds.set(id, result);
+      if (id) seenMessageIds.set(dedupKey, result);
       return result;
     }
     const hay = `${subject} ${body}`.toLowerCase();
     if (hay.includes('unsubscribe') || hay.includes('opt out') || hay.includes('opt-out')) {
       optedOut.add(optKey);
       const result = { status: 200, jobId: null, reason: 'opted_out', replyDraft: 'You are opted out. Reply START to opt back in.' };
-      if (id) seenMessageIds.set(id, result);
+      if (id) seenMessageIds.set(dedupKey, result);
       return result;
     }
     if (optedOut.has(optKey)) {
-      if (hay.includes('start')) {
+      // Opt-in requires an explicit START command, not a word
+      // that merely contains "start" ("Do not restart emails"
+      // used to silently clear the opt-out).
+      const explicitStart = subject.trim().toUpperCase() === 'START' || body.trim().toUpperCase() === 'START';
+      if (explicitStart) {
         optedOut.delete(optKey);
         const result = { status: 200, jobId: null, reason: 'opted_in', replyDraft: 'You are opted back in. How can I help?' };
-        if (id) seenMessageIds.set(id, result);
+        if (id) seenMessageIds.set(dedupKey, result);
         return result;
       }
       const result = { status: 200, jobId: null, reason: 'blocked_opted_out', replyDraft: null };
-      if (id) seenMessageIds.set(id, result);
+      if (id) seenMessageIds.set(dedupKey, result);
       return result;
     }
     if (!checkRateLimit(from, ts)) {
       const result = { status: 200, jobId: null, reason: 'rate_limited', replyDraft: null };
-      if (id) seenMessageIds.set(id, result);
+      if (id) seenMessageIds.set(dedupKey, result);
       return result;
     }
     const sigil = { checked: true, policy: tenant.sigilPolicy || 'standard', decision: 'allow', reason: 'email_intake_no_tool_dispatch_yet' };
@@ -139,7 +151,7 @@ function createEmailHandler(options) {
       ? `${firstReplyPrefix(tenant)} Thanks for your email about "${subject}". I have logged it and will follow up.`
       : `Thanks for your email about "${subject}". I have logged it and will follow up.`;
     const result = { status: 200, jobId, reason: 'job_created', replyDraft };
-    if (id) seenMessageIds.set(id, result);
+    if (id) seenMessageIds.set(dedupKey, result);
     return result;
   }
 
