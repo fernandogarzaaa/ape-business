@@ -149,6 +149,17 @@ Known gaps, do not hide them:
 
 ## Phase log
 
+- 2026-10-31, Meta loop: Wonder-in-loop VERIFIED in the demo copy
+  (local, not yet a public repo). Muse Wonder 1.0 drove the APE
+  loop through the connector credential. Allow case: finish called,
+  explicit_final_answer, outcome "wonder loop test". Block case:
+  two sigil_blocked:revoked steps, Wonder stopped retrying, blocked
+  tool never ran. Found and fixed a real gap in the same run: the
+  loop's terminal finish path bypassed invokeTool, so a gated finish
+  was never checked; it now goes through the gate first. Tests
+  after the fix: 13 gate/provider plus 184 original suite, all pass.
+  Still open: demo copy public repo, gate threshold confirmation,
+  problem statement, video, and submit go-ahead.
 - 2026-10-31, Phase 0, PR #1 merged: CI fix for AWS dry run on
   machines with docker installed. Main CI is green after the
   merge. Auto-merge authorized for this repo loop, under the
