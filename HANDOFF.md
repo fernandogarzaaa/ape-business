@@ -148,6 +148,13 @@ Known gaps, do not hide them:
 
 ## Phase log
 
+- 2026-10-31, Phase 1 exit test (test mode): provisioning/e2e-test.js
+  runs one demo tenant from onboarding through mock checkout and
+  deployment to a text receipt and an email receipt, in 2.4 seconds
+  locally, under the 5-minute exit gate. The deployment timing is
+  mocked (400 ms per step), so this proves the wiring, not a real
+  Fargate deploy time. The test cleans up its tenant and deployment
+  files, and CI now runs it on every push and PR.
 - 2026-10-31, Bot review fixes (PR #6, unmerged at write time):
   addressed all 6 Codex findings on PRs #3, #4, #5. Sealbox
   phone gate now catches contiguous numbers (+14155552671,
