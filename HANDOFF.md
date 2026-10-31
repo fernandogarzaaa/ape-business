@@ -9,6 +9,33 @@ Last updated: 2026-10-31, Phase 0 to Phase 1 transition.
 Owner: Fernando Garza (Inan). Repo: fernandogarzaaa/ape-business,
 public, main branch.
 
+## Goal definition: what complete means
+
+Complete means the product is ready for BOTH the Meta hackathon
+AND as a real product. Not one or the other. A demo that cannot
+become a real product is not complete. A real product that cannot
+be submitted by Nov 5 is not complete for this goal.
+
+Hackathon ready means: public repo, 3-minute demo video, project
+description, and every claim in submission text verified by a test
+or a live run in this repo.
+Real product ready means: onboarding, trust gate, identity by text
+and email, provisioning, payments, and deploy all work end to end
+in test mode, and the path to live mode is code, not a promise.
+Live mode itself still needs Inan's separate approvals for each
+spend, key, and account, and $0 is spent until then.
+
+## Auto-merge rule for this repo loop (Inan, 2026-10-31)
+
+Inan authorized auto-merge for this repo loop. A PR in
+fernandogarzaaa/ape-business may be merged by the loop, without a
+per-PR ask, only when all of these are true: CI is green, the
+change was audited as the change it claims to be, no secret value
+was added, and no spend, publish, send, or account change is
+included. PRs Inan recently pushed himself are never auto-merged.
+Sends under his name, spending, deletions, and account changes
+remain his explicit call, even under auto-merge.
+
 ## One sentence
 
 APE for Business gives each business its own APE agent, with a name,
@@ -122,6 +149,10 @@ Known gaps, do not hide them:
 
 ## Phase log
 
+- 2026-10-31, Phase 0, PR #1 merged: CI fix for AWS dry run on
+  machines with docker installed. Main CI is green after the
+  merge. Auto-merge authorized for this repo loop, under the
+  rule above.
 - 2026-10-31, Phase 0: Repo created public as
   fernandogarzaaa/ape-business. Onboarding site, provisioning
   prototype, pipeline, Stripe test mode, SMS test mode, AWS dry
