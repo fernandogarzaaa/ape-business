@@ -121,13 +121,39 @@ function createSmsHandler(options) {
   const rateLimit = options.rateLimit || DEFAULT_RATE_LIMIT;
   const rateWindowMs = options.rateWindowMs || DEFAULT_RATE_WINDOW_MS;
   const sendTransport = options.sendTransport || null; // injected in tests
+  // Production passes the SQLite store: dedup, opt-outs, jobs, and
+  // Sealbox maps then survive restarts. Tests omit it (in-memory).
+  const store = options.store || null;
 
-  const jobs = []; // ledger: one entry per inbound message that became a job
-  const seenMessageSids = new Map(); // MessageSid -> result (idempotency)
+  const jobs = []; // in-memory ledger fallback (tests only)
+  const seenMessageSids = new Map(); // `${tenantId}:${sid}` -> result
   const optedOut = new Set(); // `${tenantId}:${sender}`
-  const seenSenders = new Set(); // `${tenantId}:${sender}`, first-message tracking
-  const senderTimestamps = new Map(); // sender -> [epoch ms]
-  const sealbox = createSealboxGate();
+  const seenSenders = new Set(); // `${tenantId}:${sender}`
+  const senderTimestamps = new Map(); // `${tenantId}:${sender}` -> [epoch ms]
+  const sealbox = createSealboxGate(store ? { store } : undefined);
+
+  function dedupGet(tenantId, sid) {
+    if (!sid) return null;
+    if (store) return store.getDedup(tenantId, 'sms', sid);
+    return seenMessageSids.get(`${tenantId}:${sid}`) || null;
+  }
+  function dedupPut(tenantId, sid, result) {
+    if (!sid) return;
+    // Transient outcomes are never cached: a rate-limited delivery
+    // must be retryable after the window, not frozen forever.
+    if (result.reason === 'rate_limited') return;
+    if (store) store.putDedup(tenantId, 'sms', sid, result);
+    else seenMessageSids.set(`${tenantId}:${sid}`, result);
+  }
+  function isOut(tenantId, sender) {
+    return store ? store.isOptedOut(tenantId, sender)
+      : optedOut.has(`${tenantId}:${sender}`);
+  }
+  function setOut(tenantId, sender, out) {
+    if (store) { if (out) store.optOut(tenantId, sender); else store.optIn(tenantId, sender); }
+    else if (out) optedOut.add(`${tenantId}:${sender}`);
+    else optedOut.delete(`${tenantId}:${sender}`);
+  }
 
   function firstMessagePrefix(tenant) {
     const intro = tenant.intro ||
@@ -137,15 +163,26 @@ function createSmsHandler(options) {
     return `${intro} I am an AI assistant, not a human employee.`;
   }
 
-  function checkRateLimit(sender, now) {
-    const times = (senderTimestamps.get(sender) || []).filter((t) => now - t < rateWindowMs);
+  // Tenant-scoped: one tenant's flood must never throttle another
+  // tenant's customers (the old sender-only key did exactly that).
+  function checkRateLimit(tenantId, sender, now) {
+    const key = `${tenantId}:${sender}`;
+    const times = (senderTimestamps.get(key) || []).filter((t) => now - t < rateWindowMs);
     if (times.length >= rateLimit) {
-      senderTimestamps.set(sender, times);
+      senderTimestamps.set(key, times);
       return false;
     }
     times.push(now);
-    senderTimestamps.set(sender, times);
+    senderTimestamps.set(key, times);
     return true;
+  }
+
+  // CTIA keyword matching: first word, punctuation-insensitive, so
+  // "Stop." and "STOP PLEASE" opt out instead of creating jobs.
+  function keywordOf(body) {
+    const first = String(body || '').trim().toUpperCase()
+      .replace(/[.!?,;]+$/, '').split(/\s+/)[0] || '';
+    return first.replace(/[.!?,;]+$/, '');
   }
 
   // Core handler. params are the parsed Twilio POST fields.
@@ -159,70 +196,68 @@ function createSmsHandler(options) {
       return { status: 403, twiml: twiml('Signature verification failed.'), jobId: null, reason: 'bad_signature', sentViaApi: false };
     }
     const sid = params.MessageSid || '';
-    if (sid && seenMessageSids.has(sid)) {
-      // Duplicate webhook (Twilio retry): return the cached result,
-      // create no second job, send no second reply.
-      return seenMessageSids.get(sid);
-    }
     const to = normalizePhone(params.To);
     const from = normalizePhone(params.From);
     const bodyRaw = String(params.Body || '');
     const body = bodyRaw.trim();
+    // Tenant FIRST, dedup second: a global SID cache returned tenant
+    // A's result to tenant B and silently ate B's job (probed).
     const tenant = tenants[to] || tenants[params.To] || null;
     if (!tenant) {
-      const result = { status: 404, twiml: twiml('Unknown number.'), jobId: null, reason: 'unknown_tenant', sentViaApi: false };
-      if (sid) seenMessageSids.set(sid, result);
-      return result;
+      return { status: 404, twiml: twiml('Unknown number.'), jobId: null, reason: 'unknown_tenant', sentViaApi: false };
     }
-    const optKey = `${tenant.id}:${from}`;
-    const upper = body.toUpperCase();
-    if (OPT_OUT_WORDS.has(upper)) {
-      optedOut.add(optKey);
+    const cached = dedupGet(tenant.id, sid);
+    if (cached) return cached; // Twilio retry: no second job/reply
+    const keyword = keywordOf(body);
+    if (OPT_OUT_WORDS.has(keyword)) {
+      setOut(tenant.id, from, true);
       const result = { status: 200, twiml: twiml('You are opted out. Text START to opt back in.'), jobId: null, reason: 'opted_out', sentViaApi: false };
-      if (sid) seenMessageSids.set(sid, result);
+      dedupPut(tenant.id, sid, result);
       return result;
     }
-    if (OPT_IN_WORDS.has(upper)) {
-      optedOut.delete(optKey);
+    if (OPT_IN_WORDS.has(keyword)) {
+      setOut(tenant.id, from, false);
       const result = { status: 200, twiml: twiml('You are opted back in. How can I help?'), jobId: null, reason: 'opted_in', sentViaApi: false };
-      if (sid) seenMessageSids.set(sid, result);
+      dedupPut(tenant.id, sid, result);
       return result;
     }
-    if (upper === 'HELP') {
+    if (keyword === 'HELP') {
       const result = { status: 200, twiml: twiml('This is an AI assistant. Text STOP to opt out, START to opt back in.'), jobId: null, reason: 'help', sentViaApi: false };
-      if (sid) seenMessageSids.set(sid, result);
+      dedupPut(tenant.id, sid, result);
       return result;
     }
-    if (optedOut.has(optKey)) {
+    if (isOut(tenant.id, from)) {
       const result = { status: 200, twiml: twiml('You are opted out. Text START to opt back in.'), jobId: null, reason: 'blocked_opted_out', sentViaApi: false };
-      if (sid) seenMessageSids.set(sid, result);
+      dedupPut(tenant.id, sid, result);
       return result;
     }
-    if (!checkRateLimit(from, ts)) {
-      const result = { status: 200, twiml: twiml('You are sending messages too quickly. Please wait a minute and try again.'), jobId: null, reason: 'rate_limited', sentViaApi: false };
-      if (sid) seenMessageSids.set(sid, result);
-      return result;
+    if (!checkRateLimit(tenant.id, from, ts)) {
+      // Not dedup-cached: redelivery after the window must succeed.
+      return { status: 200, twiml: twiml('You are sending messages too quickly. Please wait a minute and try again.'), jobId: null, reason: 'rate_limited', sentViaApi: false };
     }
-    // Sigil intake gate: recorded on the job. Tool dispatch inside
-    // the APE loop is gated separately and is not done here.
-    const sigil = { checked: true, policy: tenant.sigilPolicy || 'standard', decision: 'allow', reason: 'sms_intake_no_tool_dispatch_yet' };
-    // Sealbox pass: the dispatch body is tokenized. Raw text stays
-    // in the tenant-local ledger only, never in the dispatch body.
+    // Intake record only. This handler dispatches no tool; the Sigil
+    // gate runs inside the APE loop before any tool call. The record
+    // says exactly that instead of claiming a gate check ran here.
+    const sigil = { checked: false, policy: tenant.sigilPolicy || 'standard', decision: 'not_applicable', reason: 'intake_only_no_tool_dispatch' };
     const sealed = sealbox.tokenize(body, tenant.id);
-    const jobId = `job_${jobs.length + 1}`;
-    const isFirst = !seenSenders.has(optKey);
-    seenSenders.add(optKey);
+    const jobId = store
+      ? 'job_' + crypto.randomUUID().slice(0, 8)
+      : `job_${jobs.length + 1}`;
+    const isFirst = store
+      ? store.markSenderSeen(tenant.id, from)
+      : !seenSenders.has(`${tenant.id}:${from}`);
+    if (!store) seenSenders.add(`${tenant.id}:${from}`);
     const job = {
       jobId, tenantId: tenant.id, channel: 'sms', sender: from, to,
       body, bodyForDispatch: sealed.tokenized, sealbox: sealed.audit,
       status: 'unverified', sigil, createdAt: new Date(ts).toISOString(),
     };
-    jobs.push(job);
+    if (store) store.addJob(job); else jobs.push(job);
     const reply = isFirst
       ? `${firstMessagePrefix(tenant)} Thanks for your message. I have logged it and will follow up.`
       : 'Thanks for your message. I have logged it and will follow up.';
     const result = { status: 200, twiml: twiml(reply), jobId, reason: 'job_created', sentViaApi: false };
-    if (sid) seenMessageSids.set(sid, result);
+    dedupPut(tenant.id, sid, result);
     return result;
   }
 
@@ -230,10 +265,14 @@ function createSmsHandler(options) {
     handleWebhook, verifyTwilioSignature, computeTwilioSignature,
     buildTwilioMessageRequest,
     sendReplyViaApi: (args) => sendReplyViaApi({ accountSid, authToken, transport: sendTransport, ...args }),
-    getJobs: () => jobs.slice(),
-    getSealboxAuditLog: () => sealbox.getAuditLog(),
+    // Copies, never live references: a caller mutating a returned
+    // job must not rewrite the ledger or another tenant's cache.
+    getJobs: () => (store
+      ? store.listJobs()
+      : jobs.map((j) => JSON.parse(JSON.stringify(j)))),
+    getSealboxAuditLog: (tenantId) => sealbox.getAuditLog(tenantId),
     detokenizeForChannel: (text, tenantId) => sealbox.detokenize(text, tenantId),
-    isOptedOut: (tenantId, sender) => optedOut.has(`${tenantId}:${normalizePhone(sender)}`),
+    isOptedOut: (tenantId, sender) => isOut(tenantId, normalizePhone(sender)),
   };
 }
 
@@ -246,8 +285,13 @@ function loadTenantsFromFile(path) {
 }
 
 function startServer() {
+  const { createStore } = require('../lib/store');
+  if (!process.env.SMS_PUBLIC_URL) {
+    console.error('WARNING: SMS_PUBLIC_URL unset — signed URL falls back to Host header, which breaks validation behind proxies. Set it before live use.');
+  }
   const handler = createSmsHandler({
     tenants: loadTenantsFromFile(process.env.SMS_TENANTS_FILE || ''),
+    store: createStore(),
   });
   const port = Number(process.env.SMS_PORT || 8790);
   const server = http.createServer((req, res) => {
@@ -257,7 +301,10 @@ function startServer() {
       return;
     }
     let raw = '';
-    req.on('data', (c) => { raw += c; });
+    req.on('data', (c) => {
+      raw += c;
+      if (raw.length > 65536) req.destroy(); // 64KB cap (was unbounded)
+    });
     req.on('end', async () => {
       const params = querystring.parse(raw);
       const proto = req.headers['x-forwarded-proto'] || 'https';

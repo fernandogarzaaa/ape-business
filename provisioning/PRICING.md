@@ -51,3 +51,12 @@ Do not sell a flat unlimited tier. Unlimited breaks a cost-plus model, because m
 ## Friction note for owners
 
 Pricing must be visible before they connect anything. The github.io page should show the calculator, with jobs per month as the one slider an owner understands, and the breakdown underneath. No surprise bill at month end. Cap jobs per month in the tenant, and stop at the cap with a clear upgrade prompt instead of silently overrunning.
+
+## Deploy-mode pricing (added with the production build)
+
+The examples above price the shared-EC2 mode. Fargate mode
+(`APE_DEPLOY_MODE=fargate`, one always-on task per tenant) prices
+infra at $9.01/tenant/mo (0.25 vCPU / 0.5 GB, us-east-1) plus an
+amortized ALB+NAT platform share ($52.40 / platformTenants). At 100
+jobs that is about $50.81/month, not $40.28. The calculator branches
+on deploy mode; verify every rate before publishing either price.

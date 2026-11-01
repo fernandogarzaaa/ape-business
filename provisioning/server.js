@@ -1,212 +1,216 @@
-// APE provisioning backend prototype.
-// Node only, no dependencies. Runs on EC2 beside APE, behind Caddy for TLS.
-// This prototype stores tenants in memory plus a JSON file per tenant.
-// It does NOT contact Shopify, Salesforce, Gmail, or any real system.
-// OAuth and discovery here are simulated shapes for the real flow.
-// Real version must: encrypt tokens at rest, isolate one APE process per
-// tenant, enforce egress allowlists, and never log a token value.
+// APE provisioning backend.
+// Node only, no npm dependencies (SQLite via node:sqlite).
+// Runs on EC2 beside APE, behind Caddy for TLS. State lives in the
+// store (provisioning/lib/store.js); bearer tokens are stored only
+// as SHA-256 hashes and returned exactly once, at provision time.
+//
+// Auth model (env names only, values from the vault):
+// - APE_API_TOKEN set: every /api/tenants route requires it as a
+//   Bearer [REDACTED] Tenant-scoped routes also accept that tenant's own
+//   bearer token. Unset: loopback-only prototype mode, warned loudly.
+// - HOST defaults to 127.0.0.1. Binding wider without APE_API_TOKEN
+//   is refused at startup.
 //
 // Endpoints:
-//   POST /api/tenants            {businessName, stage, industry, objective, profile, connectors[], policy, maxSteps, maxCostUsd}
-//   POST /api/tenants/:id/connect {system}   -> mock OAuth start (no real OAuth yet)
-//   POST /api/tenants/:id/provision          -> creates tenant bundle, endpoint, agent card
-//   POST /api/tenants/:id/discover           -> simulated read-only discovery, outcome unverified
-//   GET  /api/tenants/:id                    -> status, no secrets
-//   GET  /api/pricing/calculate?jobs=&steps=&inputTokens=&outputTokens=&storageGb=&tenantsPerInstance=
-//        -> AWS cost estimate plus margin price. Rates are editable estimates.
-//        Verify every rate on the AWS pricing page before publishing prices.
+//   POST /api/tenants            (admin) create tenant
+//   POST /api/tenants/:id/connect   (admin or tenant token; mock OAuth)
+//   POST /api/tenants/:id/provision (admin; once — repeat is 409)
+//   POST /api/tenants/:id/discover  (admin or tenant token; simulation)
+//   GET  /api/tenants/:id           (admin or tenant token; no secrets)
+//   GET  /api/pricing/calculate     (public estimate)
+//   GET  /healthz                   (public liveness, no internals)
+'use strict';
+
 const http = require('http');
-const fs = require('fs');
-const path = require('path');
 const crypto = require('crypto');
+const { createStore, isValidTenantId, hashToken } = require('./lib/store');
+const { price, RATES } = require('./lib/pricing');
+const { readJsonBody, sendJson, requireAdmin, tokenMatches } = require('./lib/http');
 
 const PORT = process.env.PORT || 8788;
-const DATA_DIR = path.join(__dirname, 'tenants');
-fs.mkdirSync(DATA_DIR, { recursive: true });
+const HOST = process.env.HOST || '127.0.0.1';
 
-// ---- Pricing model: cost-plus. Edit RATES, then re-verify on AWS pricing. ----
-const RATES = {
-  // Illustrative on-demand rates, US East, to verify before any published price.
-  ec2MonthlyUsd: 15.00,        // one small instance, shared across tenants
-  ebsPerGbMonthUsd: 0.10,
-  transferPerGbUsd: 0.09,
-  adminPerTenantMonthUsd: 2.00, // vault, monitoring, backups, support amortised
-  // Model rates from the Meta Model API research (Muse Wonder, Standard).
-  // Verify on the Billing page before quoting in submission or sales text.
-  modelInputPerMTokUsd: 4.00,
-  modelOutputPerMTokUsd: 20.00,
-  basePlatformFeeUsd: 19.00,   // per business per month, covers tenant isolation
-  margin: 0.40,                 // 40 percent profit on measured usage cost
-};
+function createServerWithStore(store) {
+  function tenantAuthorized(req, res, tenantId) {
+    if (requireAdmin(req, res)) return true;
+    const auth = req.headers.authorization || '';
+    const provided = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+    if (provided && store.tenantTokenMatches(tenantId, provided)) return true;
+    sendJson(res, 401, { error: 'unauthorized' });
+    return false;
+  }
 
-function price(input) {
-  const jobs = Math.max(0, Number(input.jobs) || 0);
-  const steps = Math.max(0, Number(input.steps) || 0);
-  const inputTokens = Math.max(0, Number(input.inputTokens) || 0);
-  const outputTokens = Math.max(0, Number(input.outputTokens) || 0);
-  const storageGb = Math.max(0, Number(input.storageGb) || 0);
-  const transferGb = Math.max(0, Number(input.transferGb) || 0);
-  const tenantsPerInstance = Math.max(1, Number(input.tenantsPerInstance) || 10);
-  // Model cost: if caller gives tokens per job, use them; else estimate from steps.
-  const tokensIn = inputTokens || jobs * steps * 800;
-  const tokensOut = outputTokens || jobs * steps * 400;
-  const modelCost = (tokensIn / 1e6) * RATES.modelInputPerMTokUsd + (tokensOut / 1e6) * RATES.modelOutputPerMTokUsd;
-  const infraCost = RATES.ec2MonthlyUsd / tenantsPerInstance + storageGb * RATES.ebsPerGbMonthUsd + transferGb * RATES.transferPerGbUsd;
-  const usageCost = infraCost + modelCost + RATES.adminPerTenantMonthUsd;
-  const priceUsd = RATES.basePlatformFeeUsd + usageCost * (1 + RATES.margin);
-  return {
-    inputs: { jobs, steps, storageGb, transferGb, tenantsPerInstance },
-    breakdownUsd: {
-      basePlatformFee: round(RATES.basePlatformFeeUsd),
-      infra: round(infraCost),
-      model: round(modelCost),
-      admin: round(RATES.adminPerTenantMonthUsd),
-      usageCost: round(usageCost),
-      marginRate: RATES.margin,
-      marginUsd: round(usageCost * RATES.margin),
-    },
-    monthlyPriceUsd: round(priceUsd),
-    perJobUsd: jobs ? round(priceUsd / jobs) : null,
-    note: 'Estimate only. Verify EC2, EBS, transfer, and model rates before publishing.',
-  };
-}
-function round(n) { return Math.round(n * 100) / 100; }
+  function publicTenant(t) {
+    if (!t) return null;
+    const { tokenHash, ...rest } = t;
+    return rest;
+  }
 
-// ---- Tenants ----
-function token() { return crypto.randomBytes(32).toString('hex'); }
-function saveTenant(t) {
-  fs.writeFileSync(path.join(DATA_DIR, t.id + '.json'), JSON.stringify(t, null, 2));
-}
-function loadTenant(id) {
-  const f = path.join(DATA_DIR, id + '.json');
-  if (!fs.existsSync(f)) return null;
-  return JSON.parse(fs.readFileSync(f, 'utf8'));
-}
-function publicTenant(t) {
-  const { bearerToken, ...rest } = t;
-  return rest;
-}
-function readBody(req) {
-  return new Promise((resolve, reject) => {
-    let s = '';
-    req.on('data', (c) => { s += c; if (s.length > 1e6) req.destroy(); });
-    req.on('end', () => { try { resolve(s ? JSON.parse(s) : {}); } catch { resolve({}); } });
-    req.on('error', reject);
+  function validCreate(b) {
+    if (!b || typeof b !== 'object' || Array.isArray(b)) return 'body must be an object';
+    if (b.businessName != null && (typeof b.businessName !== 'string' || b.businessName.length > 200)) return 'businessName invalid';
+    if (b.connectors != null && !Array.isArray(b.connectors)) return 'connectors must be an array';
+    if (b.maxSteps != null && (!Number.isInteger(b.maxSteps) || b.maxSteps < 1 || b.maxSteps > 1000)) return 'maxSteps out of range';
+    if (b.maxCostUsd != null && (!Number.isFinite(Number(b.maxCostUsd)) || Number(b.maxCostUsd) <= 0)) return 'maxCostUsd invalid';
+    return null;
+  }
+
+  return http.createServer(async (req, res) => {
+    try {
+      const url = new URL(req.url, 'http://localhost');
+      const parts = url.pathname.split('/').filter(Boolean);
+
+      if (req.method === 'GET' && url.pathname === '/healthz') {
+        return sendJson(res, 200, { ok: true });
+      }
+      if (req.method === 'GET' && url.pathname === '/api/pricing/calculate') {
+        try {
+          return sendJson(res, 200, price(Object.fromEntries(url.searchParams)));
+        } catch (e) {
+          return sendJson(res, 400, { error: 'invalid_pricing_input', message: e.message });
+        }
+      }
+
+      if (req.method === 'POST' && url.pathname === '/api/tenants') {
+        if (!requireAdmin(req, res)) return;
+        const b = await readJsonBody(req);
+        const invalid = validCreate(b);
+        if (invalid) return sendJson(res, 400, { error: 'invalid_tenant', message: invalid });
+        const t = {
+          id: 'tn_' + crypto.randomBytes(8).toString('hex'),
+          businessName: b.businessName || 'My Business',
+          stage: b.stage || 'new',
+          industry: b.industry || 'other',
+          objective: typeof b.objective === 'string' ? b.objective.slice(0, 2000) : '',
+          profile: b.profile || 'repo-triage',
+          connectors: Array.isArray(b.connectors) ? b.connectors.slice(0, 20) : ['web'],
+          policy: b.policy || 'standard',
+          maxSteps: b.maxSteps || 50,
+          maxCostUsd: b.maxCostUsd || 5,
+          status: 'created',
+          connected: [],
+          endpoint: null,
+          endpointStatus: 'unconfigured',
+          agentCard: null,
+          discovery: null,
+          createdAt: new Date().toISOString(),
+        };
+        store.putTenant(t);
+        return sendJson(res, 201, publicTenant(t));
+      }
+
+      const tenantId = parts[2];
+      const isTenantRoute = parts[0] === 'api' && parts[1] === 'tenants' && tenantId;
+      if (isTenantRoute && !isValidTenantId(tenantId)) {
+        return sendJson(res, 404, { error: 'tenant_not_found' });
+      }
+
+      if (req.method === 'POST' && isTenantRoute && parts[3] === 'connect') {
+        if (!tenantAuthorized(req, res, tenantId)) return;
+        const t = store.getTenant(tenantId);
+        if (!t) return sendJson(res, 404, { error: 'tenant_not_found' });
+        const b = await readJsonBody(req);
+        const system = typeof b.system === 'string' ? b.system : 'shopify';
+        if (!t.connected.includes(system)) t.connected.push(system);
+        t.status = 'connected';
+        store.putTenant(t);
+        return sendJson(res, 200, {
+          tenantId: t.id, system, oauth: 'mock',
+          note: 'Real version: redirect owner to provider OAuth, store token encrypted per tenant, never log it.',
+          next: 'POST /api/tenants/' + t.id + '/provision',
+        });
+      }
+
+      if (req.method === 'POST' && isTenantRoute && parts[3] === 'provision') {
+        if (!requireAdmin(req, res)) return;
+        const t = store.getTenant(tenantId);
+        if (!t) return sendJson(res, 404, { error: 'tenant_not_found' });
+        if (t.status === 'provisioned' || t.status === 'discovered' || t.status === 'paid' || t.status === 'ready') {
+          // Provisioning twice used to silently rotate the token and
+          // lock the owner out. Once means once; rotation is a
+          // separate, explicit, admin-only decision (not built here).
+          return sendJson(res, 409, { error: 'already_provisioned' });
+        }
+        const plaintext = crypto.randomBytes(32).toString('hex');
+        const base = (process.env.APE_PUBLIC_BASE_URL || '').replace(/\/$/, '');
+        t.tokenHash = hashToken(plaintext);
+        t.endpoint = base ? base + '/tenants/' + t.id + '/mcp' : null;
+        t.endpointStatus = base ? 'configured' : 'unconfigured';
+        t.agentCard = {
+          name: 'ape-mcp', business: t.businessName, description: t.objective, version: '1.0.0',
+          url: t.endpoint,
+          skills: [{ id: t.profile, name: t.profile, description: t.objective, tags: ['agent', 'ape'] }],
+          connectors: t.connected, capabilities: { streaming: false, pushNotifications: false },
+        };
+        t.status = 'provisioned';
+        store.putTenant(t);
+        return sendJson(res, 200, {
+          ...publicTenant(t), bearerToken: plaintext,
+          warning: 'Save this token now. Only its hash is stored; it cannot be shown again.',
+        });
+      }
+
+      if (req.method === 'POST' && isTenantRoute && parts[3] === 'discover') {
+        if (!tenantAuthorized(req, res, tenantId)) return;
+        const t = store.getTenant(tenantId);
+        if (!t) return sendJson(res, 404, { error: 'tenant_not_found' });
+        if (t.status !== 'provisioned' && t.status !== 'paid' && t.status !== 'ready') {
+          return sendJson(res, 409, { error: 'provision_first' });
+        }
+        const learnLines = {
+          shopify: 'Products, inventory, orders, customers',
+          salesforce: 'Accounts, contacts, opportunities, pipeline',
+          gmail: 'Customer threads, follow ups, commitments',
+          calendar: 'Meetings, deadlines, availability',
+          database: 'Schema and allowed tables, read-only',
+          slack: 'Channels and team knowledge',
+          sheets: 'Reports, price lists, trackers',
+          github: 'Repos, issues, past decisions',
+          web: 'Public research, checked before repeating',
+        };
+        t.discovery = {
+          mode: 'read-only simulation',
+          learned: t.connected.map((s) => ({ system: s, learned: learnLines[s] || 'Connected system inventory' })),
+          outcome: 'success',
+          outcomeStatus: 'unverified',
+          note: 'Draft business profile. Owner must verify before jobs act on it. Simulation only, no real system was contacted.',
+        };
+        t.status = 'discovered';
+        store.putTenant(t);
+        return sendJson(res, 200, publicTenant(t));
+      }
+
+      if (req.method === 'GET' && isTenantRoute && !parts[3]) {
+        if (!tenantAuthorized(req, res, tenantId)) return;
+        const t = store.getTenant(tenantId);
+        if (!t) return sendJson(res, 404, { error: 'tenant_not_found' });
+        return sendJson(res, 200, publicTenant(t));
+      }
+
+      return sendJson(res, 404, {
+        error: 'not_found',
+        routes: ['POST /api/tenants', 'POST /api/tenants/:id/connect', 'POST /api/tenants/:id/provision', 'POST /api/tenants/:id/discover', 'GET /api/tenants/:id', 'GET /api/pricing/calculate', 'GET /healthz'],
+      });
+    } catch (e) {
+      if (e && e.code === 'bad_json') return sendJson(res, 400, { error: 'bad_json' });
+      if (e && e.code === 'payload_too_large') return sendJson(res, 413, { error: 'payload_too_large' });
+      return sendJson(res, 500, { error: 'internal_error' });
+    }
   });
 }
-function send(res, code, obj) {
-  res.writeHead(code, { 'Content-Type': 'application/json' });
-  res.end(JSON.stringify(obj, null, 2));
-}
 
-const server = http.createServer(async (req, res) => {
-  const url = new URL(req.url, 'http://localhost');
-  const parts = url.pathname.split('/').filter(Boolean);
-
-  // Pricing calculator
-  if (req.method === 'GET' && url.pathname === '/api/pricing/calculate') {
-    return send(res, 200, price(Object.fromEntries(url.searchParams)));
-  }
-
-  // Create tenant
-  if (req.method === 'POST' && url.pathname === '/api/tenants') {
-    const b = await readBody(req);
-    const id = 'tn_' + crypto.randomBytes(6).toString('hex');
-    const t = {
-      id,
-      businessName: b.businessName || 'My Business',
-      stage: b.stage || 'new',
-      industry: b.industry || 'other',
-      objective: b.objective || '',
-      profile: b.profile || 'repo-triage',
-      connectors: Array.isArray(b.connectors) ? b.connectors : ['web'],
-      policy: b.policy || 'standard',
-      maxSteps: b.maxSteps || 50,
-      maxCostUsd: b.maxCostUsd || 5,
-      status: 'created',
-      connected: [],
-      endpoint: null,
-      agentCard: null,
-      discovery: null,
-      createdAt: new Date().toISOString(),
-    };
-    saveTenant(t);
-    return send(res, 201, publicTenant(t));
-  }
-
-  // Connect a system (mock OAuth start; real version redirects to provider)
-  if (req.method === 'POST' && parts[0] === 'api' && parts[1] === 'tenants' && parts[3] === 'connect') {
-    const t = loadTenant(parts[2]);
-    if (!t) return send(res, 404, { error: 'tenant_not_found' });
-    const b = await readBody(req);
-    const system = b.system || 'shopify';
-    if (!t.connected.includes(system)) t.connected.push(system);
-    t.status = 'connected';
-    saveTenant(t);
-    return send(res, 200, {
-      tenantId: t.id, system, oauth: 'mock',
-      note: 'Real version: redirect owner to provider OAuth, store token encrypted per tenant, never log it.',
-      next: 'POST /api/tenants/' + t.id + '/provision',
-    });
-  }
-
-  // Provision: make this business its own APE bundle
-  if (req.method === 'POST' && parts[0] === 'api' && parts[1] === 'tenants' && parts[3] === 'provision') {
-    const t = loadTenant(parts[2]);
-    if (!t) return send(res, 404, { error: 'tenant_not_found' });
-    t.bearerToken = token();
-    t.endpoint = 'https://api.example.invalid/tenants/' + t.id + '/mcp';
-    t.agentCard = {
-      name: 'ape-mcp', business: t.businessName, description: t.objective, version: '1.0.0',
-      url: t.endpoint,
-      skills: [{ id: t.profile, name: t.profile, description: t.objective, tags: ['agent', 'ape'] }],
-      connectors: t.connected, capabilities: { streaming: false, pushNotifications: false },
-    };
-    t.status = 'provisioned';
-    saveTenant(t);
-    // Return token once, like a real provisioning response. Caller must save it.
-    return send(res, 200, { ...publicTenant(t), bearerToken: t.bearerToken, warning: 'Save this token now. It is not returned again by GET status.' });
-  }
-
-  // Discover: simulated read-only learning, outcome unverified until owner approves
-  if (req.method === 'POST' && parts[0] === 'api' && parts[1] === 'tenants' && parts[3] === 'discover') {
-    const t = loadTenant(parts[2]);
-    if (!t) return send(res, 404, { error: 'tenant_not_found' });
-    if (t.status !== 'provisioned') return send(res, 409, { error: 'provision_first' });
-    const learnLines = {
-      shopify: 'Products, inventory, orders, customers',
-      salesforce: 'Accounts, contacts, opportunities, pipeline',
-      gmail: 'Customer threads, follow ups, commitments',
-      calendar: 'Meetings, deadlines, availability',
-      database: 'Schema and allowed tables, read-only',
-      slack: 'Channels and team knowledge',
-      sheets: 'Reports, price lists, trackers',
-      github: 'Repos, issues, past decisions',
-      web: 'Public research, checked before repeating',
-    };
-    t.discovery = {
-      mode: 'read-only simulation',
-      learned: t.connected.map((s) => ({ system: s, learned: learnLines[s] || 'Connected system inventory' })),
-      outcome: 'success',
-      outcomeStatus: 'unverified',
-      note: 'Draft business profile. Owner must verify before jobs act on it. Simulation only, no real system was contacted.',
-    };
-    t.status = 'discovered';
-    saveTenant(t);
-    return send(res, 200, publicTenant(t));
-  }
-
-  // Status (never returns the bearer token)
-  if (req.method === 'GET' && parts[0] === 'api' && parts[1] === 'tenants' && parts[2]) {
-    const t = loadTenant(parts[2]);
-    if (!t) return send(res, 404, { error: 'tenant_not_found' });
-    return send(res, 200, publicTenant(t));
-  }
-
-  return send(res, 404, { error: 'not_found', routes: ['POST /api/tenants', 'POST /api/tenants/:id/connect', 'POST /api/tenants/:id/provision', 'POST /api/tenants/:id/discover', 'GET /api/tenants/:id', 'GET /api/pricing/calculate'] });
-});
+const store = createStore();
+const server = createServerWithStore(store);
 
 if (require.main === module) {
-  server.listen(PORT, () => console.log('APE provisioning prototype on http://localhost:' + PORT));
+  if (HOST !== '127.0.0.1' && HOST !== 'localhost' && !process.env.APE_API_TOKEN) {
+    console.error('refusing to bind ' + HOST + ' without APE_API_TOKEN set');
+    process.exit(1);
+  }
+  if (!process.env.APE_API_TOKEN) {
+    console.error('WARNING: APE_API_TOKEN unset — unauthenticated prototype mode, loopback only.');
+  }
+  server.listen(PORT, HOST, () => console.log('APE provisioning on http://' + HOST + ':' + PORT));
 }
-module.exports = { server, price, RATES };
+
+module.exports = { server, price, RATES, createServerWithStore };

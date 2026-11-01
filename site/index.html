@@ -266,7 +266,8 @@ function applyPreset(){
 function selectedConnectors(){
   return Array.from(document.querySelectorAll('.connector:checked')).map(cb => CONNECTORS.find(c => c.id === cb.value)).filter(Boolean);
 }
-function esc(s){ return String(s).replace(/\\/g, '\\\\'); }
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function yq(s){ return JSON.stringify(String(s)); }
 function makeToken(){
   const bytes = new Uint8Array(32);
   crypto.getRandomValues(bytes);
@@ -319,9 +320,9 @@ function generate(){
   const identity = agentIdentity();
   if (!savedToken) savedToken = makeToken();
   let policyText = policy === 'strict' ? 'allow: [low]\nblock: [medium, high, critical, unknown, bad_signature, revoked]' : policy === 'open' ? 'allow: [low, medium, high]\nblock: [critical, unknown, bad_signature, revoked]' : 'allow: [low, medium]\nblock: [high, critical, unknown, bad_signature, revoked]';
-  const yaml = 'business:\n  name: "' + esc(bizName) + '"\n  stage: ' + bizStage + '\n  industry: ' + industry + '\n' +
-    'agent:\n  profile: ' + profile + '\n  objective: "' + esc(biz) + '"\n' +
-    'identity:\n  name: "' + esc(identity.name) + '"\n  email: "' + esc(identity.email) + '"\n  phone: "' + esc(identity.phone) + '"\n  channels: [' + identity.channels.join(', ') + ']\n  first_message: "' + esc(identity.intro) + '"\n  identifies_as: "AI agent, never a human employee"\n' +
+  const yaml = 'business:\n  name: ' + yq(bizName) + '\n  stage: ' + bizStage + '\n  industry: ' + industry + '\n' +
+    'agent:\n  profile: ' + profile + '\n  objective: ' + yq(biz) + '\n' +
+    'identity:\n  name: ' + yq(identity.name) + '\n  email: ' + yq(identity.email) + '\n  phone: ' + yq(identity.phone) + '\n  channels: [' + identity.channels.join(', ') + ']\n  first_message: "' + esc(identity.intro) + '\n  identifies_as: "AI agent, never a human employee"\n' +
     'learning: ' + learnMode + '\n' +
     'budget:\n  max_steps: ' + maxSteps + '\n  max_cost_usd: ' + maxCost + '\n' +
     'destructive: ' + destructive + '\n' +
