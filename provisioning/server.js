@@ -62,6 +62,7 @@ function createServerWithStore(store) {
     if (b.connectors != null && !Array.isArray(b.connectors)) return 'connectors must be an array';
     if (b.maxSteps != null && (!Number.isInteger(b.maxSteps) || b.maxSteps < 1 || b.maxSteps > 1000)) return 'maxSteps out of range';
     if (b.maxCostUsd != null && (!Number.isFinite(Number(b.maxCostUsd)) || Number(b.maxCostUsd) <= 0)) return 'maxCostUsd invalid';
+    if (b.maxJobsPerMonth != null && (!Number.isInteger(b.maxJobsPerMonth) || b.maxJobsPerMonth <= 0)) return 'maxJobsPerMonth must be a positive integer (omit for unlimited)';
     return null;
   }
 
@@ -72,6 +73,11 @@ function createServerWithStore(store) {
 
       if (req.method === 'GET' && url.pathname === '/healthz') {
         return sendJson(res, 200, { ok: true });
+      }
+      // Observability: aggregate counts only, never tenant content.
+      if (req.method === 'GET' && url.pathname === '/api/metrics') {
+        if (!requireAdmin(req, res)) return;
+        return sendJson(res, 200, { at: new Date().toISOString(), ...store.stats() });
       }
       if (req.method === 'GET' && url.pathname === '/api/pricing/calculate') {
         try {
@@ -97,6 +103,7 @@ function createServerWithStore(store) {
           policy: b.policy || 'standard',
           maxSteps: b.maxSteps || 50,
           maxCostUsd: b.maxCostUsd || 5,
+          maxJobsPerMonth: Number.isInteger(b.maxJobsPerMonth) ? b.maxJobsPerMonth : null,
           status: 'created',
           connected: [],
           endpoint: null,
@@ -115,19 +122,107 @@ function createServerWithStore(store) {
         return sendJson(res, 404, { error: 'tenant_not_found' });
       }
 
+      // Shopify OAuth callback: Shopify redirects the browser with
+      // a GET + query string; a POST JSON bridge is also accepted.
+      // ALL fields (state, shop, code) come from the ONE parameter
+      // set the HMAC verified — never mixed with outer body fields.
+      if ((req.method === 'POST' || req.method === 'GET') && isTenantRoute && parts[3] === 'connect' && parts[4] === 'shopify' && parts[5] === 'callback') {
+        const b = req.method === 'GET'
+          ? Object.fromEntries(url.searchParams)
+          : await readJsonBody(req);
+        const fields = b.query && typeof b.query === 'object' ? b.query : b;
+        const shopify = require('./connectors/shopify');
+        const secret = process.env.SHOPIFY_CLIENT_SECRET || '';
+        const payload = shopify.verifyState(fields.state, secret);
+        if (!payload || payload.tenantId !== tenantId || payload.shop !== fields.shop) {
+          return sendJson(res, 400, { error: 'bad_state' });
+        }
+        if (!shopify.verifyCallbackHmac(fields, secret)) {
+          return sendJson(res, 400, { error: 'bad_hmac' });
+        }
+        const t = store.getTenant(tenantId);
+        if (!t) return sendJson(res, 404, { error: 'tenant_not_found' });
+        try {
+          const { encrypt } = require('./lib/vault');
+          const deps = createServerWithStore.shopifyDeps || {};
+          const out = await shopify.exchangeCode({
+            shop: fields.shop, code: fields.code,
+            clientId: process.env.SHOPIFY_CLIENT_ID, clientSecret: secret,
+          }, deps);
+          store.putCredential(tenantId, 'shopify', encrypt(out.accessToken));
+        } catch (e) {
+          if (e.code === 'missing_vault_key' || e.code === 'bad_vault_key') {
+            return sendJson(res, 500, { error: 'vault_not_configured' });
+          }
+          return sendJson(res, 502, { error: 'oauth_exchange_failed' });
+        }
+        if (!t.connected.includes('shopify')) t.connected.push('shopify');
+        // Never regress the lifecycle: a paid/ready tenant stays so.
+        if (t.status === 'created' || t.status === 'connected') t.status = 'connected';
+        store.putTenant(t);
+        return sendJson(res, 200, { tenantId: t.id, system: 'shopify', oauth: 'complete', scope: 'read-only' });
+      }
+
       if (req.method === 'POST' && isTenantRoute && parts[3] === 'connect') {
         if (!tenantAuthorized(req, res, tenantId)) return;
         const t = store.getTenant(tenantId);
         if (!t) return sendJson(res, 404, { error: 'tenant_not_found' });
         const b = await readJsonBody(req);
         const system = typeof b.system === 'string' ? b.system : 'shopify';
+        // Real Shopify OAuth when configured; mock shape otherwise.
+        if (system === 'shopify' && process.env.SHOPIFY_CLIENT_ID && b.shop) {
+          const shopify = require('./connectors/shopify');
+          try {
+            const state = shopify.signState(
+              { tenantId: t.id, shop: b.shop, exp: Date.now() + 10 * 60 * 1000 },
+              process.env.SHOPIFY_CLIENT_SECRET || '');
+            const url = shopify.buildAuthUrl({
+              shop: b.shop, clientId: process.env.SHOPIFY_CLIENT_ID,
+              redirectUri: process.env.SHOPIFY_REDIRECT_URI || '', state,
+            });
+            return sendJson(res, 200, { tenantId: t.id, system, oauth: 'redirect', url });
+          } catch (e) {
+            return sendJson(res, 400, { error: 'invalid_shop', message: e.message });
+          }
+        }
         if (!t.connected.includes(system)) t.connected.push(system);
         t.status = 'connected';
         store.putTenant(t);
         return sendJson(res, 200, {
           tenantId: t.id, system, oauth: 'mock',
-          note: 'Real version: redirect owner to provider OAuth, store token encrypted per tenant, never log it.',
+          note: 'Mock connect. Configure SHOPIFY_CLIENT_ID/SECRET for the real Shopify OAuth redirect.',
           next: 'POST /api/tenants/' + t.id + '/provision',
+        });
+      }
+
+      // Token rotation (admin): the recovery path provision-once
+      // needs. Old token dies the moment the new hash lands.
+      if (req.method === 'POST' && isTenantRoute && parts[3] === 'rotate-token') {
+        if (!requireAdmin(req, res)) return;
+        const t = store.getTenant(tenantId);
+        if (!t) return sendJson(res, 404, { error: 'tenant_not_found' });
+        const plaintext = crypto.randomBytes(32).toString('hex');
+        t.tokenHash = hashToken(plaintext);
+        store.putTenant(t);
+        return sendJson(res, 200, {
+          tenantId: t.id, bearerToken: plaintext,
+          warning: 'Save this token now. The previous token no longer works.',
+        });
+      }
+
+      // Usage: this month's job count against the stored limits.
+      if (req.method === 'GET' && isTenantRoute && parts[3] === 'usage') {
+        if (!tenantAuthorized(req, res, tenantId)) return;
+        const t = store.getTenant(tenantId);
+        if (!t) return sendJson(res, 404, { error: 'tenant_not_found' });
+        const monthStart = new Date();
+        monthStart.setUTCDate(1);
+        monthStart.setUTCHours(0, 0, 0, 0);
+        return sendJson(res, 200, {
+          tenantId: t.id, status: t.status,
+          jobsThisMonth: store.countJobsSince(t.id, monthStart.toISOString()),
+          maxJobsPerMonth: t.maxJobsPerMonth ?? null,
+          maxSteps: t.maxSteps, maxCostUsd: t.maxCostUsd,
         });
       }
 
