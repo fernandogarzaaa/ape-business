@@ -33,7 +33,7 @@ jobs:
           src="target/${{ matrix.target }}/release/adam-mcp${{ contains(matrix.os, 'windows') && '.exe' || '' }}"
           cp "$src" "$GITHUB_WORKSPACE/${{ matrix.asset }}"
           ls -la "$GITHUB_WORKSPACE/${{ matrix.asset }}"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.asset }}
           path: ${{ matrix.asset }}
