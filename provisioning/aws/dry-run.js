@@ -36,11 +36,11 @@ async function main() {
   check('deploy dry-run exit 0', deploy.status === 0, deploy.stderr.slice(0, 200));
   const result = JSON.parse(readFileSync(join(dir, 'calls.json'), 'utf8'));
   const seq = result.calls.map((c) => `${c.service}:${c.action}`);
-  check('deploy call order', JSON.stringify(seq) === JSON.stringify(['iam:CreateRole', 'iam:PutRolePolicy', 'secretsmanager:CreateSecret', 'logs:CreateLogGroup', 'ecs:RegisterTaskDefinition', 'ecs:RunTask']), seq.join(','));
+  check('deploy call order', JSON.stringify(seq) === JSON.stringify(['iam:CreateRole', 'iam:PutRolePolicy', 'secretsmanager:CreateSecret', 'logs:CreateLogGroup', 'logs:PutRetentionPolicy', 'ecs:RegisterTaskDefinition', 'ecs:RunTask', 'elbv2:RoutingNotConfigured']), seq.join(','));
   check('role name scoped', result.roleName === `ape-tenant-${tenant}`, result.roleName);
   const policy = result.calls[1].policy;
   const resources = policy.Statement.flatMap((s) => s.Resource);
-  check('policy has no wildcard resource', !resources.includes('*') && resources.every((r) => r.includes(tenant)), resources.join(','));
+  check('policy has no wildcard resource', !resources.includes('*') && resources.every((r) => r.includes(tenant) || r === 'arn:aws:s3:::ape-tenants'), resources.join(','));
   check('policy has no ec2/iam actions', !JSON.stringify(policy).includes('ec2:') && !JSON.stringify(policy).includes('iam:'), '');
   check('secret value redacted in output', JSON.stringify(result).includes('<redacted>') && !JSON.stringify(result).includes('bearer_token'), '');
   check('no live flag in dry-run', result.live === false, '');
@@ -59,13 +59,21 @@ async function main() {
 
   const rb = spawnSync('node', [join(dir, 'rollback.js'), tenant, '--task-arn', 'arn:aws:ecs:us-east-1:000000000000:task/ape-test/abc', `--out=${join(dir, 'rollback-calls.json')}`], { encoding: 'utf8', env });
   const rbSeq = JSON.parse(readFileSync(join(dir, 'rollback-calls.json'), 'utf8')).calls.map((c) => `${c.service}:${c.action}`);
-  check('rollback reverse order', JSON.stringify(rbSeq) === JSON.stringify(['ecs:StopTask', 'secretsmanager:DeleteSecret', 'logs:DeleteLogGroup', 'iam:DeleteRolePolicy', 'iam:DeleteRole']), rbSeq.join(','));
+  check('rollback reverse order', JSON.stringify(rbSeq) === JSON.stringify(['ecs:StopTask', 'ecs:DeregisterTaskDefinition', 'secretsmanager:DeleteSecretWithRecovery', 'logs:RetainLogGroup', 'iam:DeleteRolePolicy', 'iam:DeleteRole']), rbSeq.join(','));
 
+  // Fixture ape-mcp root: --check must prove every COPY source
+  // exists (the old existence-only check hid an unbuildable image).
+  const os = require('node:os');
+  const fixture = require('node:fs').mkdtempSync(join(os.tmpdir(), 'ape-mcp-fixture-'));
+  require('node:fs').mkdirSync(join(fixture, 'src'), { recursive: true });
+  require('node:fs').mkdirSync(join(fixture, 'bin'), { recursive: true });
+  require('node:fs').writeFileSync(join(fixture, 'package.json'), '{"name":"ape-mcp-fixture","version":"0.0.0"}');
   const dockerPresent = spawnSync('sh', ['-c', 'command -v docker'], { encoding: 'utf8' }).status === 0;
-  const build = dockerPresent
-    ? spawnSync('sh', [join(dir, 'build-image.sh'), '--check'], { encoding: 'utf8' })
-    : spawnSync('sh', [join(dir, 'build-image.sh'), 'dryrun'], { encoding: 'utf8' });
-  check('build-image check (exit 2 without docker, exit 0 with --check when docker present)', dockerPresent ? build.status === 0 : build.status === 2, ((build.stdout || '') + (build.stderr || '')).slice(0, 200));
+  const build = spawnSync('sh', [join(dir, 'build-image.sh'), '--check'], { encoding: 'utf8', env: { ...process.env, APE_MCP_ROOT: fixture } });
+  check('build-image --check validates every COPY source against fixture root', build.status === 0, ((build.stdout || '') + (build.stderr || '')).slice(0, 200));
+  const buildMissing = spawnSync('sh', [join(dir, 'build-image.sh'), '--check'], { encoding: 'utf8', env: { ...process.env, APE_MCP_ROOT: join(fixture, 'nope') } });
+  check('build-image --check fails when a COPY source is missing', buildMissing.status !== 0, '');
+  require('node:fs').rmSync(fixture, { recursive: true, force: true });
 
   stub.close();
   const report = { tenant, stubBase: base, deployCalls: seq, rollbackCalls: rbSeq, healthStdout: health.stdout.trim(), checks, allPass: checks.every((c) => c.ok) };

@@ -36,8 +36,9 @@
     "test": "node --test tests/ape.test.js tests/agent.test.js tests/context.test.js tests/connectors.test.js tests/extension.test.js tests/hostdetect.test.js tests/console.test.js tests/a2a.test.js tests/analyze.test.js tests/router.test.js tests/outcomes.test.js tests/drift.test.js tests/admission.test.js tests/supply.test.js tests/tasks.test.js tests/profiles.test.js tests/delegate.test.js tests/hierarchy.test.js",
     "console": "node bin/ape-mcp.js serve",
     "test:sigil": "node --test tests/sigil-gate.test.js tests/sigil-gate-invoke.test.js tests/sigil-gate-hardening.test.js tests/meta-provider.test.js",
-    "test:provisioning": "node provisioning/sms/test-sms.js && node provisioning/email/test-email.js && node provisioning/stripe/test-stripe.js && node provisioning/aws/dry-run.js && node provisioning/e2e-test.js",
-    "demo:sigil": "node demo/sigil-gate-demo.mjs"
+    "test:provisioning": "node provisioning/sms/test-sms.js && node provisioning/email/test-email.js && node provisioning/stripe/test-stripe.js && node provisioning/aws/dry-run.js && node provisioning/test-production.js && node provisioning/e2e-test.js",
+    "demo:sigil": "node demo/sigil-gate-demo.mjs",
+    "check": "for f in $(find provisioning -name '*.js' -not -path '*/node_modules/*'); do node --check \"$f\" || exit 1; done"
   },
   "dependencies": {
     "zod": "^3.23.8",

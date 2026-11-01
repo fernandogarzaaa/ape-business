@@ -1,50 +1,60 @@
-// Stripe webhook HTTP server for the APE pipeline. Test mode only.
+// Stripe webhook HTTP server for the APE pipeline.
 //
-// Why a separate endpoint: Stripe signs the RAW request body. The
-// existing pipeline.js webhook parses JSON first, which destroys the
-// exact bytes the signature covers, so it cannot verify a real
-// Stripe webhook. This server reads the raw body, verifies it with
-// stripe/verify.js, and only then calls the existing runPipeline
-// from pipeline.js (whose AWS steps are still mock records in this
-// build; see DEPLOYMENT_PIPELINE.md).
+// Stripe signs the RAW request body, so this server reads raw bytes,
+// verifies with stripe/verify.js + handler.js, and only then runs
+// the pipeline. Tenant state lives in the store (lib/store.js).
+// A verified payment marks the tenant 'paid' — the pipeline deploy
+// endpoint refuses everyone else, so payment gates deployment.
 //
 //   POST /api/webhooks/stripe   (raw body, Stripe-Signature header)
-//   GET  /api/webhooks/stripe/health
+//   GET  /api/webhooks/stripe/health  (liveness only, no internals)
 //
-// Env names only: STRIPE_WEBHOOK_SECRET, STRIPE_WEBHOOK_PORT.
-// No key value is read from a file, logged, or returned.
+// Env names only: STRIPE_WEBHOOK_SECRET, STRIPE_WEBHOOK_PORT, HOST.
+// No key value is read from a file, logged, or returned. Error
+// responses carry a machine code, never an internal message/stack.
 'use strict';
+
 const http = require('http');
-const fs = require('fs');
-const path = require('path');
 const { createWebhookHandler } = require('./handler.js');
-const { runPipeline } = require('../pipeline.js');
+const { createPipeline } = require('../pipeline.js');
+const { createStore, isValidTenantId } = require('../lib/store');
+const { sendJson } = require('../lib/http');
 
 const PORT = process.env.STRIPE_WEBHOOK_PORT || 8790;
-const TENANTS_DIR = path.join(__dirname, '..', 'tenants');
-
-function loadTenant(id) {
-  const f = path.join(TENANTS_DIR, id + '.json');
-  if (!fs.existsSync(f)) return null;
-  return JSON.parse(fs.readFileSync(f, 'utf8'));
-}
+const HOST = process.env.HOST || '127.0.0.1';
 
 function buildHandler(deps) {
   const d = deps || {};
+  const store = d.store || createStore();
+  const pipeline = d.pipeline || createPipeline(store, d.pipelineOpts).runPipeline;
   return createWebhookHandler({
     webhookSecret: d.webhookSecret != null
       ? d.webhookSecret : process.env.STRIPE_WEBHOOK_SECRET,
-    store: d.store,
-    storePath: d.storePath,
-    provision: async (paymentIntentId, event) => {
+    store,
+    provision: async (key, event) => {
       const obj = event.data.object || {};
       const tenantId = obj.metadata && obj.metadata.tenantId;
-      if (!tenantId) throw new Error('webhook metadata has no tenantId');
-      const tenant = d.loadTenant
-        ? d.loadTenant(tenantId) : loadTenant(tenantId);
-      if (!tenant) throw new Error('tenant_not_found: ' + tenantId);
-      const run = d.runPipeline || runPipeline;
-      return run(tenant, paymentIntentId);
+      if (!tenantId || !isValidTenantId(tenantId)) {
+        throw new Error('webhook metadata has no valid tenantId');
+      }
+      const tenant = store.getTenant(tenantId);
+      if (!tenant) throw new Error('tenant_not_found');
+      tenant.status = 'paid';
+      tenant.paymentIntentId = key;
+      store.putTenant(tenant);
+      return pipeline(tenant, key);
+    },
+    onSubscriptionEvent: async (event) => {
+      const obj = event.data.object || {};
+      const tenantId = obj.metadata && obj.metadata.tenantId;
+      if (!tenantId || !isValidTenantId(tenantId)) return null;
+      const tenant = store.getTenant(tenantId);
+      if (!tenant) return null;
+      if (event.type === 'invoice.paid') tenant.status = 'paid';
+      if (event.type === 'customer.subscription.deleted') tenant.status = 'suspended';
+      if (event.type === 'invoice.payment_failed') tenant.status = 'past_due';
+      store.putTenant(tenant);
+      return { tenantId, status: tenant.status };
     },
   });
 }
@@ -53,45 +63,51 @@ function readRaw(req) {
   return new Promise((resolve, reject) => {
     const chunks = [];
     let size = 0;
+    let settled = false;
     req.on('data', (c) => {
       chunks.push(c);
       size += c.length;
-      if (size > 1e6) req.destroy();
+      if (size > 1e6 && !settled) {
+        settled = true;
+        const e = new Error('payload too large');
+        e.code = 'payload_too_large';
+        reject(e);
+        req.destroy();
+      }
     });
-    req.on('end', () => resolve(Buffer.concat(chunks)));
+    req.on('end', () => { if (!settled) resolve(Buffer.concat(chunks)); });
     req.on('error', reject);
   });
 }
 
-function send(res, code, obj) {
-  res.writeHead(code, { 'Content-Type': 'application/json' });
-  res.end(JSON.stringify(obj, null, 2));
+function createWebhookServer(handler) {
+  return http.createServer(async (req, res) => {
+    const url = new URL(req.url, 'http://localhost');
+    if (req.method === 'GET' && url.pathname === '/api/webhooks/stripe/health') {
+      return sendJson(res, 200, { ok: true });
+    }
+    if (req.method === 'POST' && url.pathname === '/api/webhooks/stripe') {
+      try {
+        const raw = await readRaw(req);
+        const out = await handler(raw, req.headers['stripe-signature']);
+        return sendJson(res, 200, out);
+      } catch (e) {
+        const clientCodes = ['invalid_signature', 'missing_signature',
+          'stale_timestamp', 'invalid_payload', 'missing_intent', 'payload_too_large'];
+        const code = clientCodes.includes(e.code) ? 400 : 500;
+        return sendJson(res, code, { error: e.code || 'handler_error' });
+      }
+    }
+    return sendJson(res, 404, { error: 'not_found' });
+  });
 }
 
 const handler = buildHandler();
-const server = http.createServer(async (req, res) => {
-  const url = new URL(req.url, 'http://localhost');
-  if (req.method === 'GET' && url.pathname === '/api/webhooks/stripe/health') {
-    return send(res, 200, { ok: true, mode: 'test_only', secretConfigured: Boolean(process.env.STRIPE_WEBHOOK_SECRET) });
-  }
-  if (req.method === 'POST' && url.pathname === '/api/webhooks/stripe') {
-    try {
-      const raw = await readRaw(req);
-      const out = await handler(raw, req.headers['stripe-signature']);
-      return send(res, 200, out);
-    } catch (e) {
-      // Signature failures are 400, like Stripe expects; provisioning
-      // failures are 500 and are NOT recorded as processed.
-      const code = e.code === 'invalid_signature' || e.code === 'missing_signature'
-        || e.code === 'stale_timestamp' || e.code === 'invalid_payload' ? 400 : 500;
-      return send(res, code, { error: e.code || 'handler_error', message: e.message });
-    }
-  }
-  return send(res, 404, { error: 'not_found' });
-});
+const server = createWebhookServer(handler);
 
 if (require.main === module) {
-  server.listen(PORT, () => console.log(
-    'APE Stripe webhook server (test mode only) on http://localhost:' + PORT));
+  server.listen(PORT, HOST, () => console.log(
+    'APE Stripe webhook server on http://' + HOST + ':' + PORT));
 }
-module.exports = { server, buildHandler };
+
+module.exports = { server, buildHandler, createWebhookServer };

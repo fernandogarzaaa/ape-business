@@ -1,0 +1,84 @@
+name: Deploy tenant (manual, approved)
+
+# CD is a human act in this repo (docs/SDLC.md): this workflow runs
+# ONLY on manual dispatch, inside the `production` GitHub Environment
+# (required reviewers = Inan). AWS credentials are short-lived OIDC —
+# no long-lived access keys are stored in GitHub. All other secrets
+# are Environment secrets whose NAMES are listed in docs/PRODUCTION.md;
+# values come from Secure Vault when Inan hands them over.
+#
+# Required Environment secrets (names only here):
+#   AWS_ROLE_ARN (OIDC role for github-actions), AWS_REGION,
+#   AWS_ACCOUNT_ID, APE_CLUSTER, APE_VPC_ID, APE_SUBNETS,
+#   APE_SECURITY_GROUP, APE_EXECUTION_ROLE_ARN, APE_ALB_LISTENER_ARN,
+#   APE_PUBLIC_DOMAIN, APE_HEALTH_TOKEN
+# Required vars: ECR_REPOSITORY (ape-tenant), CADDY_ECR_REPOSITORY
+
+on:
+  workflow_dispatch:
+    inputs:
+      tenant_id:
+        description: 'Tenant id (tn_...) to deploy'
+        required: true
+      image_tag:
+        description: 'Image tag to deploy (commit SHA)'
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-${{ inputs.tenant_id }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Configure AWS credentials (OIDC, no stored keys)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+      - name: Log in to ECR
+        uses: aws-actions/amazon-ecr-login@v2
+      - name: Ensure ECR repositories (scan on push, immutable tags)
+        run: |
+          for repo in "${{ vars.ECR_REPOSITORY }}" "${{ vars.CADDY_ECR_REPOSITORY }}"; do
+            aws ecr describe-repositories --repository-names "$repo" >/dev/null 2>&1 || \
+            aws ecr create-repository --repository-name "$repo" \
+              --image-scanning-configuration scanOnPush=true \
+              --image-tag-mutability IMMUTABLE \
+              --encryption-configuration encryptionType=AES256
+          done
+      - name: Deploy tenant (live, double-gated)
+        env:
+          APE_DEPLOY_LIVE_CONFIRMED: '1'
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+          APE_CLUSTER: ${{ secrets.APE_CLUSTER }}
+          APE_VPC_ID: ${{ secrets.APE_VPC_ID }}
+          APE_SUBNETS: ${{ secrets.APE_SUBNETS }}
+          APE_SECURITY_GROUP: ${{ secrets.APE_SECURITY_GROUP }}
+          APE_EXECUTION_ROLE_ARN: ${{ secrets.APE_EXECUTION_ROLE_ARN }}
+          APE_ALB_LISTENER_ARN: ${{ secrets.APE_ALB_LISTENER_ARN }}
+          APE_PUBLIC_DOMAIN: ${{ secrets.APE_PUBLIC_DOMAIN }}
+          APE_IMAGE: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ vars.ECR_REPOSITORY }}:${{ inputs.image_tag }}
+          APE_CADDY_IMAGE: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ vars.CADDY_ECR_REPOSITORY }}:latest
+        run: node provisioning/aws/deploy.js "${{ inputs.tenant_id }}" --live --out=deploy-calls.json
+      - name: Health check the routed endpoint
+        env:
+          APE_HEALTH_TOKEN: ${{ secrets.APE_HEALTH_TOKEN }}
+        run: |
+          node provisioning/aws/health-check.js "https://ape-${{ inputs.tenant_id }}.${{ secrets.APE_PUBLIC_DOMAIN }}" --retries 5
+      - name: Upload deploy record
+        uses: actions/upload-artifact@v4
+        with:
+          name: deploy-${{ inputs.tenant_id }}-${{ inputs.image_tag }}
+          path: deploy-calls.json

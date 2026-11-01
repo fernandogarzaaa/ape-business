@@ -34,3 +34,9 @@ provisioning/deployments/
 .env
 .env.*
 !.env.example
+
+# Production data (SQLite store, tenant files, idempotency ledgers).
+# Bearer tokens live only as hashes in the DB; the DB still never commits.
+provisioning/stripe/processed-intents.json
+*.db-wal
+*.db-shm

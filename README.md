@@ -83,10 +83,7 @@ HANDOFF.md for the current phase and what is still mock.
 ## Run the tests (no spend, no network)
 
 ```
-node provisioning/sms/test-sms.js
-node provisioning/stripe/test-stripe.js
-node provisioning/aws/dry-run.js
-node --check provisioning/server.js provisioning/pipeline.js
+npm run test:provisioning   # SMS, email, Stripe, AWS dry run, production regressions, e2e gate
 ```
 
 ## Secrets rule
