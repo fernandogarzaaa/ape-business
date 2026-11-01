@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -27,12 +30,33 @@ jobs:
         run: node provisioning/stripe/test-stripe.js
       - name: AWS dry run
         run: node provisioning/aws/dry-run.js
-      - name: Phase 1 exit test (onboarding to text and email receipt)
+      - name: Production regression tests
+        run: node provisioning/test-production.js
+      - name: Wiring gate (onboarding -> verified Stripe webhook -> text + email receipt)
         run: node provisioning/e2e-test.js
+      - name: Task definition is valid JSON with no placeholders after substitution
+        run: |
+          python3 - <<'PY'
+          import json
+          raw = open('provisioning/aws/task-definition.json').read()
+          for ph in ['__TENANT_ID__','__APE_IMAGE__','__CADDY_IMAGE__','__SECRET_ARN__','__LOG_GROUP__','__REGION__','__TASK_ROLE_ARN__','__EXECUTION_ROLE_ARN__']:
+              assert ph in raw, f'missing placeholder {ph}'
+              raw = raw.replace(ph, 'x')
+          json.loads(raw)
+          print('task-definition.json OK')
+          PY
+      - name: Docker build (fixture ape-mcp context proves the image builds)
+        run: |
+          mkdir -p /tmp/ape-mcp-fixture/src /tmp/ape-mcp-fixture/bin
+          printf '{"name":"ape-mcp-fixture","version":"0.0.0"}' > /tmp/ape-mcp-fixture/package.json
+          printf '{"lockfileVersion":3,"packages":{}}' > /tmp/ape-mcp-fixture/package-lock.json
+          echo 'console.log("fixture")' > /tmp/ape-mcp-fixture/src/index.js
+          echo '#!/bin/sh' > /tmp/ape-mcp-fixture/bin/ape
+          APE_MCP_ROOT=/tmp/ape-mcp-fixture sh provisioning/aws/build-image.sh ci-fixture
       - name: No secret values in repo
         run: |
           # Env names are allowed. Real-looking secret values are not.
-          if grep -RInE 'sk_live_[A-Za-z0-9]{16,}|sk_test_[A-Za-z0-9]{16,}|whsec_[A-Za-z0-9]{16,}|AKIA[0-9A-Z]{16}' provisioning site --exclude-dir=node_modules; then
+          if grep -RInE 'sk_live_[A-Za-z0-9]{16,}|sk_test_[A-Za-z0-9]{16,}|whsec_[A-Za-z0-9]{16,}|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{20,}|-----BEGIN [A-Z ]*PRIVATE KEY-----' provisioning site --exclude-dir=node_modules; then
             echo "Possible secret value found. Remove it and use an env name instead."
             exit 1
           fi

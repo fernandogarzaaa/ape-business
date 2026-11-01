@@ -31,12 +31,20 @@ function check(name, fn) {
     .catch((e) => { console.log('FAIL: ' + name + ' :: ' + (e && e.stack ? e.stack : e)); process.exitCode = 1; });
 }
 
+// Atomic-claim store (same contract as provisioning/lib/store.js).
+// claim is synchronous: two concurrent deliveries cannot both win.
 function memoryStore() {
   const m = new Map();
   return {
-    has: (id) => m.has(id),
-    get: (id) => m.get(id),
-    record: (id, v) => { m.set(id, v); },
+    claimIntent: (id) => {
+      if (m.has(id)) return false;
+      m.set(id, null);
+      return true;
+    },
+    recordIntent: (id, v) => { m.set(id, v); },
+    releaseIntent: (id) => { if (m.get(id) == null) m.delete(id); },
+    getIntent: (id) => (m.has(id) ? m.get(id) : null),
+    hasIntent: (id) => m.has(id),
   };
 }
 
@@ -104,12 +112,12 @@ async function main() {
   //    is $40.28 in PRICING.md, so 4028 cents.
   await check('checkout price matches calculator ($40.28 = 4028 cents)', () => {
     const built = buildCheckoutSessionParams({
-      tenantId: 'tn_test', jobs: 100, steps: 10, storageGb: 5,
+      tenantId: 'tn_0123456789ab', jobs: 100, steps: 10, storageGb: 5,
     });
     assert.strictEqual(built.price.monthlyPriceUsd, 40.28);
     assert.strictEqual(built.amountCents, 4028);
     assert.strictEqual(built.fields['line_items[0][price_data][unit_amount]'], '4028');
-    assert.strictEqual(built.fields['metadata[tenantId]'], 'tn_test');
+    assert.strictEqual(built.fields['metadata[tenantId]'], 'tn_0123456789ab');
   });
 
   // 7. createCheckoutSession posts the right shape, via fake transport
@@ -121,7 +129,7 @@ async function main() {
       return { id: 'cs_test_fake', url: 'https://checkout.stripe.com/fake' };
     };
     const out = await createCheckoutSession(
-      { tenantId: 'tn_test', jobs: 100, steps: 10, storageGb: 5 },
+      { tenantId: 'tn_0123456789ab', jobs: 100, steps: 10, storageGb: 5 },
       { apiKey: 'sk_test_FAKE_TRANSPORT_ONLY', post: fakePost },
     );
     assert.strictEqual(seen.key, 'sk_test_FAKE_TRANSPORT_ONLY');
@@ -135,7 +143,7 @@ async function main() {
     delete process.env.STRIPE_SECRET_KEY;
     try {
       await assert.rejects(
-        createCheckoutSession({ tenantId: 'tn_test' }, { apiKey: null }),
+        createCheckoutSession({ tenantId: 'tn_0123456789ab' }, { apiKey: null }),
         (e) => e.code === 'missing_secret',
       );
     } finally {

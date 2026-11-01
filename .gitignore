@@ -3,3 +3,17 @@
 provisioning/aws/calls.json
 provisioning/aws/rollback-calls.json
 provisioning/aws/dry-run-report.json
+
+# Production data (SQLite store, tenant files, idempotency ledgers).
+# Bearer tokens live only as hashes in the DB; the DB still never commits.
+provisioning/data/
+provisioning/tenants/*.json
+provisioning/deployments/
+provisioning/stripe/processed-intents.json
+*.db
+*.db-wal
+*.db-shm
+.env
+.env.*
+!.env.example
+node_modules/

@@ -14,5 +14,5 @@ RUN chown -R ape:ape /home/ape/ape-mcp
 USER ape
 ENV APE_PORT=8787 APE_HOST=127.0.0.1 APE_REQUIRE_AUTH=1
 EXPOSE 8787
-COPY --chown=ape:ape entrypoint.sh /home/ape/entrypoint.sh
+COPY --from=apeaws --chown=ape:ape entrypoint.sh /home/ape/entrypoint.sh
 ENTRYPOINT ["/bin/sh", "/home/ape/entrypoint.sh"]

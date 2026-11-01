@@ -202,3 +202,23 @@ Known gaps, do not hide them:
   run, security doc, pricing, and this handoff, all committed to
   main as the initial import. $0 spent. Meta scope changed to
   full product v1. Next: Meta submission decisions, then Phase 1.
+
+- 2026-11-01, Production-ready build (test mode, $0 spent): SQLite
+  store (provisioning/lib/store.js) replaces in-memory + per-tenant
+  JSON for tenants, deployments, Stripe idempotency, jobs, dedup,
+  opt-outs, and Sealbox maps; bearer tokens stored as SHA-256 hashes
+  only. Auth on provisioning/pipeline (APE_API_TOKEN, loopback
+  default, provision-once). Mock payment webhook removed (410);
+  provisioning only from the signature-verified Stripe webhook with
+  a fail-closed amount guard, atomic claim, and subscription
+  checkout. SMS dedup/rate tenant-scoped, CTIA STOP variants, email
+  DMARC parsing + intent opt-out, Sealbox SSN/card/credential
+  detectors. AWS: execFileSync (no shell), ALB routing step,
+  buildable image (named build context + COPY-source check),
+  hardened task definition, non-destructive rollback, Fargate
+  pricing mode. CI adds production tests, task-def validation, and
+  a fixture docker build; CD is a manual, environment-approved,
+  OIDC deploy workflow. Retention paragraph written in
+  docs/PRODUCTION.md. Suites: SMS 15, email 10, Stripe 12, dry-run
+  11, production 8, e2e (real Stripe path) all pass. Still not live:
+  no real Stripe/AWS/Twilio run; keys pending Inan via Secure Vault.
