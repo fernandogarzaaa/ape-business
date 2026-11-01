@@ -222,3 +222,18 @@ Known gaps, do not hide them:
   docs/PRODUCTION.md. Suites: SMS 15, email 10, Stripe 12, dry-run
   11, production 8, e2e (real Stripe path) all pass. Still not live:
   no real Stripe/AWS/Twilio run; keys pending Inan via Secure Vault.
+
+- 2026-11-01, Harness robustness + gap closure (stacked on the Sigil
+  move, test mode, $0 spent): locked eval suite (evals/, scorer
+  locked separately from agent changes); tenant limits enforced
+  (monthly job quota at intake, usage endpoint, admin token
+  rotation); Sigil index service (verified publish, project-key
+  revocations, one-time-shown rotation key; sign.mjs keeps private
+  keys local); observability (/api/metrics aggregates, CloudWatch
+  alarms in deploy when APE_ALARM_TOPIC_ARN set); Shopify OAuth
+  connector (state + callback HMAC, AES-256-GCM vault). harness2
+  adaptation (Apache 2.0 patterns, no code copied): eight-component
+  harness manifest hashed into every receipt, append-only lessons
+  offered as untrusted context, Propose-Probe-Compose hermetic
+  probes that reject locked-surface edits. Suites: original 188,
+  Sigil 22, provisioning all green, evals 3/3.

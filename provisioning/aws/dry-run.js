@@ -36,7 +36,7 @@ async function main() {
   check('deploy dry-run exit 0', deploy.status === 0, deploy.stderr.slice(0, 200));
   const result = JSON.parse(readFileSync(join(dir, 'calls.json'), 'utf8'));
   const seq = result.calls.map((c) => `${c.service}:${c.action}`);
-  check('deploy call order', JSON.stringify(seq) === JSON.stringify(['iam:CreateRole', 'iam:PutRolePolicy', 'secretsmanager:CreateSecret', 'logs:CreateLogGroup', 'logs:PutRetentionPolicy', 'ecs:RegisterTaskDefinition', 'ecs:RunTask', 'elbv2:RoutingNotConfigured']), seq.join(','));
+  check('deploy call order', JSON.stringify(seq) === JSON.stringify(['iam:CreateRole', 'iam:PutRolePolicy', 'secretsmanager:CreateSecret', 'logs:CreateLogGroup', 'logs:PutRetentionPolicy', 'ecs:RegisterTaskDefinition', 'ecs:RunTask', 'elbv2:RoutingNotConfigured', 'cloudwatch:AlarmsNotConfigured']), seq.join(','));
   check('role name scoped', result.roleName === `ape-tenant-${tenant}`, result.roleName);
   const policy = result.calls[1].policy;
   const resources = policy.Statement.flatMap((s) => s.Resource);

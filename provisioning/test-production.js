@@ -201,6 +201,103 @@ async function main() {
       s.close();
     });
 
+    await check('Shopify: auth URL, callback HMAC, encrypted token storage', async () => {
+      const shopify = require('./connectors/shopify');
+      const { encrypt, decrypt } = require('./lib/vault');
+      process.env.APE_VAULT_KEY = crypto.randomBytes(32).toString('hex');
+      const url = shopify.buildAuthUrl({ shop: 'demo.myshopify.com', clientId: 'cid', redirectUri: 'https://x.invalid/cb', state: 'st' });
+      assert.ok(url.startsWith('https://demo.myshopify.com/admin/oauth/authorize?'));
+      assert.throws(() => shopify.buildAuthUrl({ shop: 'evil.example.com', clientId: 'cid', redirectUri: '', state: '' }), /myshopify/);
+      const secret = 'shpss_test';
+      const state = shopify.signState({ tenantId: 'tn_aaaaaaaaaaaa', shop: 'demo.myshopify.com', exp: Date.now() + 60000 }, secret);
+      assert.strictEqual(shopify.verifyState(state, secret).tenantId, 'tn_aaaaaaaaaaaa');
+      assert.strictEqual(shopify.verifyState(state, 'wrong'), null);
+      const query = { shop: 'demo.myshopify.com', code: 'abc', state, timestamp: '123' };
+      const pairs = Object.entries(query).map(([k, v]) => `${k}=${v}`).sort().join('&');
+      query.hmac = crypto.createHmac('sha256', secret).update(pairs).digest('hex');
+      assert.ok(shopify.verifyCallbackHmac(query, secret));
+      assert.ok(!shopify.verifyCallbackHmac({ ...query, code: 'tampered' }, secret));
+      const out = await shopify.exchangeCode(
+        { shop: 'demo.myshopify.com', code: 'abc', clientId: 'cid', clientSecret: secret },
+        { post: async () => ({ access_token: 'shpat_test_token', scope: 'read_products,read_orders,read_customers' }) });
+      const s = createStore(dbFile);
+      s.putCredential('tn_aaaaaaaaaaaa', 'shopify', encrypt(out.accessToken));
+      assert.strictEqual(decrypt(s.getCredential('tn_aaaaaaaaaaaa', 'shopify')), 'shpat_test_token');
+      assert.ok(!s.getCredential('tn_aaaaaaaaaaaa', 'shopify').includes('shpat'));
+      s.close();
+      delete process.env.APE_VAULT_KEY;
+    });
+
+    await check('Sigil index: sign -> gate allow -> revoke -> gate deny', async () => {
+      const { execFileSync } = require('child_process');
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ape-sigil-idx-'));
+      const keyFile = path.join(dir, 'priv.json');
+      const keygenOut = execFileSync('node', [path.join(__dirname, 'sigil-index/sign.mjs'), 'keygen', '--out', keyFile], { encoding: 'utf8', cwd: path.join(__dirname, '..') });
+      const pubLine = keygenOut.trim().split('\n').pop();
+      const pub = JSON.parse(pubLine);
+      fs.mkdirSync(path.join(dir, 'keys'), { recursive: true });
+      fs.writeFileSync(path.join(dir, 'keys/project.json'), JSON.stringify(pub));
+      const badgeJson = execFileSync('node', [path.join(__dirname, 'sigil-index/sign.mjs'), 'badge', '--server', 'demo-server', '--version', '1.0.0', '--score', '90', '--level', 'low', '--key', keyFile], { encoding: 'utf8', cwd: path.join(__dirname, '..') });
+      const badge = JSON.parse(badgeJson);
+      fs.mkdirSync(path.join(dir, 'badges/demo-server'), { recursive: true });
+      fs.writeFileSync(path.join(dir, 'badges/demo-server/1.0.0.json'), JSON.stringify(badge));
+      const gate = await import('../src/agent/sigil-gate.js');
+      const before = gate.checkSigilGate({ indexDir: dir, tool: 't', server: 'demo-server', version: '1.0.0' });
+      assert.strictEqual(before.decision.allow, true, JSON.stringify(before));
+      const revJson = execFileSync('node', [path.join(__dirname, 'sigil-index/sign.mjs'), 'revocation', '--server', 'demo-server', '--version', '1.0.0', '--reason', 'test revoke', '--key', keyFile], { encoding: 'utf8', cwd: path.join(__dirname, '..') });
+      fs.mkdirSync(path.join(dir, 'revocations/demo-server'), { recursive: true });
+      fs.writeFileSync(path.join(dir, 'revocations/demo-server/1.0.0.json'), revJson);
+      const after = gate.checkSigilGate({ indexDir: dir, tool: 't', server: 'demo-server', version: '1.0.0' });
+      assert.strictEqual(after.decision.allow, false);
+      assert.strictEqual(after.decision.reason, 'revoked');
+      fs.rmSync(dir, { recursive: true, force: true });
+    });
+
+    await check('SMS quota: maxJobsPerMonth enforced at job creation', async () => {
+      const s = createStore(dbFile);
+      const h = createSmsHandler({
+        authToken: 'tok', accountSid: 'sid', publicUrl: 'https://x.invalid/sms', store: s,
+        tenants: { '+15550100007': { id: 'tn_cccccccccccc', agentName: 'C', businessName: 'C', maxJobsPerMonth: 1 } },
+      });
+      const url = 'https://x.invalid/sms';
+      const mk = (sid) => {
+        const params = { To: '+15550100007', From: '+15550100077', Body: 'hi', MessageSid: sid };
+        return { url, params, signature: computeTwilioSignature(url, params, 'tok'), now: Date.now() };
+      };
+      const r1 = await h.handleWebhook(mk('SM_Q1'));
+      const r2 = await h.handleWebhook(mk('SM_Q2'));
+      assert.ok(r1.jobId);
+      assert.strictEqual(r2.reason, 'quota_exceeded');
+      s.close();
+    });
+
+
+    await check('Review fixes: scope downgrade rejected, quota read from stored record', async () => {
+      const shopify = require('./connectors/shopify');
+      await assert.rejects(
+        shopify.exchangeCode(
+          { shop: 'demo.myshopify.com', code: 'c', clientId: 'cid', clientSecret: 's' },
+          { post: async () => ({ access_token: 'tok', scope: 'read_products' }) }),
+        /missing/);
+      // Quota lives ONLY on the stored tenant; the routing entry has none.
+      const s = createStore(dbFile);
+      s.putTenant({ id: 'tn_dddddddddddd', status: 'ready', maxJobsPerMonth: 1, createdAt: new Date().toISOString() });
+      const h = createSmsHandler({
+        authToken: 'tok', accountSid: 'sid', publicUrl: 'https://x.invalid/sms', store: s,
+        tenants: { '+15550100009': { id: 'tn_dddddddddddd', agentName: 'D', businessName: 'D' } },
+      });
+      const url = 'https://x.invalid/sms';
+      const mk = (sid) => {
+        const params = { To: '+15550100009', From: '+15550100055', Body: 'hi', MessageSid: sid };
+        return { url, params, signature: computeTwilioSignature(url, params, 'tok'), now: Date.now() };
+      };
+      const r1 = await h.handleWebhook(mk('SM_S1'));
+      const r2 = await h.handleWebhook(mk('SM_S2'));
+      assert.ok(r1.jobId, 'first job under stored quota');
+      assert.strictEqual(r2.reason, 'quota_exceeded');
+      s.close();
+    });
+
     console.log('---');
     console.log('PRODUCTION TESTS: ' + passed + ' passed, exitCode=' + (process.exitCode || 0));
     if (process.exitCode) console.log('RESULT: FAILED');

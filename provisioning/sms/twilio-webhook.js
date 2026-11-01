@@ -252,7 +252,23 @@ function createSmsHandler(options) {
       body, bodyForDispatch: sealed.tokenized, sealbox: sealed.audit,
       status: 'unverified', sigil, createdAt: new Date(ts).toISOString(),
     };
-    if (store) store.addJob(job); else jobs.push(job);
+    if (store) {
+      // Limit comes from the STORED tenant record (API truth), the
+      // routing-file entry is only a fallback. Decision + insert are
+      // one transaction (addJobWithQuota).
+      const stored = store.getTenant(tenant.id);
+      const limit = stored?.maxJobsPerMonth ?? tenant.maxJobsPerMonth;
+      if (limit != null) {
+        const monthStart = new Date(ts);
+        monthStart.setUTCDate(1);
+        monthStart.setUTCHours(0, 0, 0, 0);
+        if (!store.addJobWithQuota(tenant.id, job, limit, monthStart.toISOString())) {
+          return { status: 200, twiml: twiml('This business has reached its monthly message limit. Please try again next month.'), jobId: null, reason: 'quota_exceeded', sentViaApi: false };
+        }
+      } else {
+        store.addJob(job);
+      }
+    } else jobs.push(job);
     const reply = isFirst
       ? `${firstMessagePrefix(tenant)} Thanks for your message. I have logged it and will follow up.`
       : 'Thanks for your message. I have logged it and will follow up.';
