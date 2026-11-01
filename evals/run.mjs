@@ -16,9 +16,9 @@ const baseProfile = {
   name: 'eval-profile',
   model: { provider: 'mock', id: 'mock-model' },
   system: 'Be careful. Verify before claiming.',
+  // Builtin tools only: engine tools execute for real (ADAM binary,
+  // installed implementations) and would make CI depend on the host.
   tools: [
-    { engine: 'skein.orchestrate' },
-    { engine: 'genesis.audit_claim' },
     { builtin: 'memory.recall' },
     { builtin: 'memory.store' },
     { builtin: 'finish' },

@@ -30,25 +30,42 @@ const arg = (name) => {
 };
 
 if (cmd === 'keygen') {
+  const out = arg('out');
+  if (!out) {
+    console.error('keygen requires --out <file>: private key material is never printed to stdout');
+    process.exit(2);
+  }
   const { publicKey, privateKey } = generateKeyPairSync('ed25519');
   const pub = publicKey.export({ format: 'jwk' });
   const priv = privateKey.export({ format: 'jwk' });
-  const out = arg('out');
-  if (out) {
-    const { writeFileSync } = await import('node:fs');
-    writeFileSync(out, JSON.stringify(priv), { mode: 0o600 });
-    console.error('private key written (0600) to ' + out + ' — move it to Secure Vault');
-  } else {
-    console.log(JSON.stringify(priv));
-  }
+  const { writeFileSync } = await import('node:fs');
+  // Exclusive create: never overwrite an existing key, never leave
+  // one behind with inherited permissions.
+  writeFileSync(out, JSON.stringify(priv), { mode: 0o600, flag: 'wx' });
+  console.error('private key written (0600, exclusive) to ' + out + ' — move it to Secure Vault');
   console.log(JSON.stringify({ keyId: keyIdOf(pub), publicKey: pub }));
 } else if (cmd === 'badge') {
+  const scoreRaw = arg('score');
+  const score = Number(scoreRaw);
+  const level = arg('level');
+  if (scoreRaw == null || !Number.isInteger(score) || score < 0 || score > 100) {
+    console.error('badge requires --score <integer 0-100>');
+    process.exit(2);
+  }
+  if (!['low', 'medium', 'high', 'critical'].includes(level)) {
+    console.error('badge requires --level <low|medium|high|critical>');
+    process.exit(2);
+  }
+  if (!arg('server') || !arg('version') || !arg('key')) {
+    console.error('badge requires --server, --version, --key');
+    process.exit(2);
+  }
   const priv = JSON.parse(readFileSync(arg('key'), 'utf8'));
   const pub = { crv: 'Ed25519', kty: 'OKP', x: priv.x };
   const badge = signObject({
     type: 'sigil-badge/v1',
     server: arg('server'), version: arg('version'),
-    riskScore: Number(arg('score')), riskLevel: arg('level'),
+    riskScore: score, riskLevel: level,
     keyId: keyIdOf(pub), publicKey: pub,
     issuedAt: new Date().toISOString(),
   }, priv);

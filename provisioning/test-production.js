@@ -219,7 +219,7 @@ async function main() {
       assert.ok(!shopify.verifyCallbackHmac({ ...query, code: 'tampered' }, secret));
       const out = await shopify.exchangeCode(
         { shop: 'demo.myshopify.com', code: 'abc', clientId: 'cid', clientSecret: secret },
-        { post: async () => ({ access_token: 'shpat_test_token', scope: 'read_products' }) });
+        { post: async () => ({ access_token: 'shpat_test_token', scope: 'read_products,read_orders,read_customers' }) });
       const s = createStore(dbFile);
       s.putCredential('tn_aaaaaaaaaaaa', 'shopify', encrypt(out.accessToken));
       assert.strictEqual(decrypt(s.getCredential('tn_aaaaaaaaaaaa', 'shopify')), 'shpat_test_token');
@@ -267,6 +267,33 @@ async function main() {
       const r1 = await h.handleWebhook(mk('SM_Q1'));
       const r2 = await h.handleWebhook(mk('SM_Q2'));
       assert.ok(r1.jobId);
+      assert.strictEqual(r2.reason, 'quota_exceeded');
+      s.close();
+    });
+
+
+    await check('Review fixes: scope downgrade rejected, quota read from stored record', async () => {
+      const shopify = require('./connectors/shopify');
+      await assert.rejects(
+        shopify.exchangeCode(
+          { shop: 'demo.myshopify.com', code: 'c', clientId: 'cid', clientSecret: 's' },
+          { post: async () => ({ access_token: 'tok', scope: 'read_products' }) }),
+        /missing/);
+      // Quota lives ONLY on the stored tenant; the routing entry has none.
+      const s = createStore(dbFile);
+      s.putTenant({ id: 'tn_dddddddddddd', status: 'ready', maxJobsPerMonth: 1, createdAt: new Date().toISOString() });
+      const h = createSmsHandler({
+        authToken: 'tok', accountSid: 'sid', publicUrl: 'https://x.invalid/sms', store: s,
+        tenants: { '+15550100009': { id: 'tn_dddddddddddd', agentName: 'D', businessName: 'D' } },
+      });
+      const url = 'https://x.invalid/sms';
+      const mk = (sid) => {
+        const params = { To: '+15550100009', From: '+15550100055', Body: 'hi', MessageSid: sid };
+        return { url, params, signature: computeTwilioSignature(url, params, 'tok'), now: Date.now() };
+      };
+      const r1 = await h.handleWebhook(mk('SM_S1'));
+      const r2 = await h.handleWebhook(mk('SM_S2'));
+      assert.ok(r1.jobId, 'first job under stored quota');
       assert.strictEqual(r2.reason, 'quota_exceeded');
       s.close();
     });

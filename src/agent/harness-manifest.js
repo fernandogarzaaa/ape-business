@@ -22,7 +22,7 @@ export function harnessManifest(profile) {
     memory: {
       builtins: (profile.tools ?? []).filter((t) => String(t.builtin ?? '').startsWith('memory.')).map((t) => t.builtin),
     },
-    tool_guidance: { hash: sha((profile.tools ?? []).map((t) => t.engine ?? t.builtin ?? '')) },
+    tool_guidance: { hash: sha(profile.tools ?? []) },
     subagents: {
       max_delegate_depth: profile.limits?.max_delegate_depth ?? 2,
       delegation: (profile.tools ?? []).some((t) => t.engine === 'delegate' || t.builtin === 'delegate'),

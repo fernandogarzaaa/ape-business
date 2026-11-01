@@ -66,3 +66,16 @@ test('propose-probe-compose: hermetic run composes a winner with provenance', as
   assert.ok(out.probes.every((p) => p.harness_hash));
   assert.match(out.note, /human PR decision/);
 });
+
+test('probe locks: removed ceilings and live/engine profiles are rejected', async () => {
+  const { assertVariantLocked: avl, assertHermetic } = await import('../src/agent/probe.js');
+  assert.throws(() => avl(profile, { ...profile, limits: {} }), /removes budget ceiling/);
+  assert.throws(() => avl(profile, { ...profile, limits: { ...profile.limits, max_wall_seconds: 999 } }), /budget ceiling/);
+  assert.throws(() => assertHermetic({ ...profile, model: { provider: 'meta', id: 'x' } }), /mock provider/);
+  assert.throws(() => assertHermetic({ ...profile, tools: [{ engine: 'skein.orchestrate' }] }), /builtin tools/);
+});
+
+test('lessons: unreadable storage means no lessons, never a failed run', async () => {
+  const { loadLessons: ll } = await import('../src/agent/lessons.js');
+  assert.deepEqual(ll('probe-profile', 5, '/nonexistent-dir-xyz/lessons.jsonl'), []);
+});

@@ -1,1 +1,103 @@
-{"version":1,"note":"Golden tasks for the APE loop, executed hermetically against the mock provider. Expectations are scored by evals/score.mjs (LOCKED). Adding a task is free; loosening an expectation needs the same review as a scorer change.","tasks":[{"id":"triage-completes","objective":"Triage the reported issue.","script":[{"tool":"memory.recall","args":{"query":"prior decisions"}},{"tool":"finish","args":{"summary":"triage complete"}}],"expect":{"stop_reason":"explicit_final_answer","outcome_includes":"triage complete","max_steps":6,"max_cost_usd":0}},{"id":"loop-halts-on-budget","objective":"loop forever","limits":{"max_steps":3},"script":[{"tool":"memory.recall","args":{"query":"loop-0"}},{"tool":"memory.recall","args":{"query":"loop-1"}},{"tool":"memory.recall","args":{"query":"loop-2"}},{"tool":"memory.recall","args":{"query":"loop-3"}},{"tool":"memory.recall","args":{"query":"loop-4"}}],"expect":{"stop_reason":"max_steps","max_steps":3}},{"id":"multi-tool-ledger","objective":"Check status, then finish.","script":[{"tool":"skein.orchestrate","args":{"op":"status"}},{"tool":"genesis.audit_claim","args":{}},{"tool":"finish","args":{"summary":"status checked"}}],"expect":{"stop_reason":"explicit_final_answer","outcome_includes":"status checked","max_steps":8}}]}
+{
+  "version": 1,
+  "note": "Golden tasks for the APE loop, executed hermetically against the mock provider. Expectations are scored by evals/score.mjs (LOCKED). Adding a task is free; loosening an expectation needs the same review as a scorer change.",
+  "tasks": [
+    {
+      "id": "triage-completes",
+      "objective": "Triage the reported issue.",
+      "script": [
+        {
+          "tool": "memory.recall",
+          "args": {
+            "query": "prior decisions"
+          }
+        },
+        {
+          "tool": "finish",
+          "args": {
+            "summary": "triage complete"
+          }
+        }
+      ],
+      "expect": {
+        "stop_reason": "explicit_final_answer",
+        "outcome_includes": "triage complete",
+        "max_steps": 6,
+        "max_cost_usd": 0
+      }
+    },
+    {
+      "id": "loop-halts-on-budget",
+      "objective": "loop forever",
+      "limits": {
+        "max_steps": 3
+      },
+      "script": [
+        {
+          "tool": "memory.recall",
+          "args": {
+            "query": "loop-0"
+          }
+        },
+        {
+          "tool": "memory.recall",
+          "args": {
+            "query": "loop-1"
+          }
+        },
+        {
+          "tool": "memory.recall",
+          "args": {
+            "query": "loop-2"
+          }
+        },
+        {
+          "tool": "memory.recall",
+          "args": {
+            "query": "loop-3"
+          }
+        },
+        {
+          "tool": "memory.recall",
+          "args": {
+            "query": "loop-4"
+          }
+        }
+      ],
+      "expect": {
+        "stop_reason": "max_steps",
+        "max_steps": 3
+      }
+    },
+    {
+      "id": "multi-tool-ledger",
+      "objective": "Check status, then finish.",
+      "script": [
+        {
+          "tool": "memory.recall",
+          "args": {
+            "query": "status"
+          }
+        },
+        {
+          "tool": "memory.store",
+          "args": {
+            "key": "eval-status",
+            "value": "checked"
+          }
+        },
+        {
+          "tool": "finish",
+          "args": {
+            "summary": "status checked"
+          }
+        }
+      ],
+      "expect": {
+        "stop_reason": "explicit_final_answer",
+        "outcome_includes": "status checked",
+        "max_steps": 8
+      }
+    }
+  ]
+}

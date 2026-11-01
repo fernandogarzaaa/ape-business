@@ -82,6 +82,9 @@ function defaultPost(shop, body) {
         resolve(parsed);
       });
     });
+    // The timeout option alone never aborts; destroy the socket so
+    // a stalled exchange cannot hang the callback forever.
+    req.on('timeout', () => req.destroy(new Error('Shopify token exchange timed out')));
     req.on('error', reject);
     req.write(body);
     req.end();
@@ -96,6 +99,15 @@ async function exchangeCode({ shop, code, clientId, clientSecret }, deps) {
     client_id: clientId, client_secret: clientSecret, code,
   }));
   if (!out || !out.access_token) throw new Error('Shopify exchange returned no access_token');
+  // Granted scopes must cover what was requested; a downgraded
+  // token must not be stored as a full connection.
+  const granted = new Set(String(out.scope || '').split(',').map((x) => x.trim()).filter(Boolean));
+  const missing = SCOPES.split(',').filter((x) => !granted.has(x));
+  if (missing.length) {
+    const e = new Error('Shopify granted scopes missing: ' + missing.join(','));
+    e.code = 'insufficient_scope';
+    throw e;
+  }
   return { accessToken: out.access_token, scope: out.scope || SCOPES };
 }
 

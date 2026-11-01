@@ -34,10 +34,26 @@ export function assertVariantLocked(base, variant) {
       throw new Error(`variant touches locked surface: ${k}`);
     }
   }
-  if ((variant.limits?.max_usd ?? 0) > (base.limits?.max_usd ?? 0) ||
-      (variant.limits?.max_tokens ?? 0) > (base.limits?.max_tokens ?? 0) ||
-      (variant.limits?.max_steps ?? 0) > (base.limits?.max_steps ?? 0)) {
-    throw new Error('variant raises a budget ceiling (locked)');
+  // Every governed ceiling must survive and never rise; a REMOVED
+  // ceiling is not 0, it is unbounded, and is rejected as such.
+  for (const k of ['max_usd', 'max_tokens', 'max_steps', 'max_wall_seconds']) {
+    const baseV = base.limits?.[k];
+    if (baseV == null) continue;
+    const v = variant.limits?.[k];
+    if (v == null || v > baseV) {
+      throw new Error(`variant ${v == null ? 'removes' : 'raises'} budget ceiling: ${k} (locked)`);
+    }
+  }
+  return true;
+}
+
+export function assertHermetic(profile) {
+  if (profile.model?.provider !== 'mock') {
+    throw new Error('probe is hermetic only with the mock provider; live providers are rejected, not probed live');
+  }
+  const external = (profile.tools ?? []).filter((t) => t.engine || t.connector);
+  if (external.length) {
+    throw new Error('probe is hermetic only with builtin tools; engine/connector tools execute for real and are rejected');
   }
   return true;
 }
@@ -54,11 +70,14 @@ function probeScore(result) {
 }
 
 export async function proposeProbeCompose({ profile, objective, mockScript }) {
+  assertHermetic(profile);
   const variants = proposeVariants(profile);
   const probes = [];
   for (const v of variants) {
     assertVariantLocked(profile, v.profile);
-    const result = await runAgent({ profile: v.profile, objective, mockScript });
+    // Lessons disabled: a lesson written by variant A must not leak
+    // into variant B's context or the comparison is meaningless.
+    const result = await runAgent({ profile: v.profile, objective, mockScript, lessons: false });
     probes.push({
       id: v.id, edits: v.edits,
       harness_hash: harnessManifest(v.profile).hash,
@@ -77,6 +96,6 @@ export async function proposeProbeCompose({ profile, objective, mockScript }) {
     edits: winner.edits,
     harness_hash: winner.harness_hash,
     probes,
-    note: 'Composed from behavioral contrast on this task only. Promoting the winner into a profile is a human PR decision; nothing here self-modifies the shipped harness.',
+    note: 'Composed from behavioral contrast on this task only. Mock scripts are fixed per task, so guidance variants are compared on steps/cost/budget behavior, not on changed model choices. Promoting the winner into a profile is a human PR decision; nothing here self-modifies the shipped harness.',
   };
 }

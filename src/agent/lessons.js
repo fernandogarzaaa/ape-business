@@ -38,8 +38,15 @@ export function appendLesson(lesson, file) {
 
 export function loadLessons(profile, limit = 5, file) {
   const f = file ?? lessonsPath();
-  if (!existsSync(f)) return [];
-  const rows = readFileSync(f, 'utf8').split('\n').filter(Boolean)
+  let raw;
+  try {
+    if (!existsSync(f)) return [];
+    // Bounded: only the tail of the append-only log is ever read,
+    // and any read failure means 'no lessons', never a failed run.
+    raw = readFileSync(f, 'utf8');
+    if (raw.length > 65536) raw = raw.slice(-65536);
+  } catch { return []; }
+  const rows = raw.split('\n').filter(Boolean)
     .map((l) => { try { return JSON.parse(l); } catch { return null; } })
     .filter((r) => r && (!profile || r.profile === profile));
   return rows.slice(-limit);

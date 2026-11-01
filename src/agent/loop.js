@@ -74,7 +74,7 @@ export function ingestToolResult({ runKey, globalCtx = {}, policyCtx = {}, toolN
   };
 }
 
-export async function runAgent({ profile, objective, organism_id = "default", onStep, onCheckpoint, mockScript, mockCostPerCall = 0, resolvedModel, resolvedChain = null, routing = null, initial = null, initialContext = null, depth = 0, maxDelegateDepth = null, parentRunId = null, runId = null, sigilIndexDir = null }) {
+export async function runAgent({ profile, objective, organism_id = "default", onStep, onCheckpoint, mockScript, mockCostPerCall = 0, resolvedModel, resolvedChain = null, routing = null, initial = null, initialContext = null, depth = 0, maxDelegateDepth = null, parentRunId = null, runId = null, sigilIndexDir = null, lessons = true }) {
   const budget = makeBudget(profile.limits);
   // Resume: seed budget counters from the checkpoint so numbering and ceilings continue.
   if (initial?.budget) {
@@ -94,7 +94,7 @@ export async function runAgent({ profile, objective, organism_id = "default", on
   // Hydrated memory enters framed as UNTRUSTED data (same trust class as tool
   // output): it may embed connector responses or planted instructions and must
   // never be received as principal instructions alongside the objective.
-  const lessonsFrame = process.env.APE_LESSONS === "0" ? null
+  const lessonsFrame = (!lessons || process.env.APE_LESSONS === "0") ? null
     : frameLessons(loadLessons(profile.name));
   const messages = initial?.messages?.length
     ? [...initial.messages]
@@ -602,7 +602,7 @@ const toolCalls = resp.toolCalls ?? [];
   // Harnessing-level recursion: distill and persist a lesson for
   // future runs of this profile. Best-effort; never fails the run.
   try {
-    if (process.env.APE_LESSONS !== "0") appendLesson(reflectLesson(finalResult));
+    if (lessons && process.env.APE_LESSONS !== "0") appendLesson(reflectLesson(finalResult));
   } catch { /* lessons are advisory */ }
   return finalResult;
 }

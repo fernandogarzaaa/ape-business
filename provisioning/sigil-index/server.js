@@ -103,13 +103,22 @@ function createIndexServer(indexDir) {
           if (revocation.server == null || revocation.version == null) {
             return sendJson(res, 400, { error: 'revocation_missing_fields' });
           }
-          // Reuse the gate's own pinning logic via a probe badge dir:
-          // verify signature against the project key directly.
+          // Full signed-object contract, mirroring the gate: type,
+          // status, key pinning, embedded key match, then signature.
           const { canonicalize } = g;
+          if (revocation.type !== 'sigil-revocation/v1' || revocation.status !== 'revoked') {
+            return sendJson(res, 400, { error: 'revocation_contract_invalid' });
+          }
+          if (!revocation.signature || !revocation.revokedAt) {
+            return sendJson(res, 400, { error: 'revocation_missing_fields' });
+          }
+          if (revocation.keyId !== projectKey.keyId ||
+              canonicalize(revocation.publicKey || {}) !== canonicalize(projectKey.publicKey)) {
+            return sendJson(res, 400, { error: 'revocation_key_mismatch' });
+          }
           const { signature, ...unsigned } = revocation;
           const key = crypto.createPublicKey({ key: projectKey.publicKey, format: 'jwk' });
-          const ok = revocation.keyId === projectKey.keyId &&
-            crypto.verify(null, Buffer.from(canonicalize(unsigned)), key, Buffer.from(signature, 'base64'));
+          const ok = crypto.verify(null, Buffer.from(canonicalize(unsigned)), key, Buffer.from(signature, 'base64'));
           if (!ok) return sendJson(res, 400, { error: 'revocation_not_signed_by_project_key' });
           const file = path.join(dir, 'revocations', seg(revocation.server), seg(revocation.version) + '.json');
           writeJson(file, revocation);
@@ -147,6 +156,13 @@ function createIndexServer(indexDir) {
 if (require.main === module) {
   if (!process.env.SIGIL_INDEX_ADMIN_TOKEN) {
     console.error('refusing to start: SIGIL_INDEX_ADMIN_TOKEN unset (publishing would be unauthenticated)');
+    process.exit(1);
+  }
+  // Admin token + rotated private keys cross this listener: never
+  // serve them over cleartext beyond loopback unless a TLS proxy
+  // terminates in front (explicitly acknowledged).
+  if (HOST !== '127.0.0.1' && HOST !== 'localhost' && process.env.SIGIL_INDEX_BEHIND_TLS !== '1') {
+    console.error('refusing non-loopback bind without SIGIL_INDEX_BEHIND_TLS=1 (admin token and private keys would cross cleartext HTTP)');
     process.exit(1);
   }
   createIndexServer().listen(PORT, HOST, () =>

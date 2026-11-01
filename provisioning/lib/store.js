@@ -292,6 +292,28 @@ function createStore(dbPath) {
         .get(tenantId, system);
       return row ? row.ciphertext : null;
     },
+    // Quota decision + job insert in ONE transaction: two intakes
+    // in separate processes must not both win the last slot.
+    addJobWithQuota(tenantId, job, limit, sinceIso) {
+      db.exec('BEGIN IMMEDIATE');
+      try {
+        const row = db.prepare(
+          'SELECT COUNT(*) AS c FROM jobs WHERE tenant_id = ? AND created_at >= ?')
+          .get(tenantId, sinceIso);
+        if (row.c >= limit) {
+          db.exec('COMMIT');
+          return false;
+        }
+        db.prepare('INSERT INTO jobs (id, tenant_id, channel, data, created_at) VALUES (?, ?, ?, ?, ?)')
+          .run(job.jobId, job.tenantId, job.channel,
+            JSON.stringify(job), job.createdAt || now());
+        db.exec('COMMIT');
+        return true;
+      } catch (e) {
+        try { db.exec('ROLLBACK'); } catch { /* already closed */ }
+        throw e;
+      }
+    },
     // ---- usage + observability ----
     countJobsSince(tenantId, sinceIso) {
       const row = db.prepare(

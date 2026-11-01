@@ -239,16 +239,6 @@ function createSmsHandler(options) {
     // gate runs inside the APE loop before any tool call. The record
     // says exactly that instead of claiming a gate check ran here.
     const sigil = { checked: false, policy: tenant.sigilPolicy || 'standard', decision: 'not_applicable', reason: 'intake_only_no_tool_dispatch' };
-    // Monthly quota from the tenant record (provisioning limit,
-    // enforced here at job creation, not just stored).
-    if (store && tenant.maxJobsPerMonth) {
-      const monthStart = new Date(ts);
-      monthStart.setUTCDate(1);
-      monthStart.setUTCHours(0, 0, 0, 0);
-      if (store.countJobsSince(tenant.id, monthStart.toISOString()) >= tenant.maxJobsPerMonth) {
-        return { status: 200, twiml: twiml('This business has reached its monthly message limit. Please try again next month.'), jobId: null, reason: 'quota_exceeded', sentViaApi: false };
-      }
-    }
     const sealed = sealbox.tokenize(body, tenant.id);
     const jobId = store
       ? 'job_' + crypto.randomUUID().slice(0, 8)
@@ -262,7 +252,23 @@ function createSmsHandler(options) {
       body, bodyForDispatch: sealed.tokenized, sealbox: sealed.audit,
       status: 'unverified', sigil, createdAt: new Date(ts).toISOString(),
     };
-    if (store) store.addJob(job); else jobs.push(job);
+    if (store) {
+      // Limit comes from the STORED tenant record (API truth), the
+      // routing-file entry is only a fallback. Decision + insert are
+      // one transaction (addJobWithQuota).
+      const stored = store.getTenant(tenant.id);
+      const limit = stored?.maxJobsPerMonth ?? tenant.maxJobsPerMonth;
+      if (limit != null) {
+        const monthStart = new Date(ts);
+        monthStart.setUTCDate(1);
+        monthStart.setUTCHours(0, 0, 0, 0);
+        if (!store.addJobWithQuota(tenant.id, job, limit, monthStart.toISOString())) {
+          return { status: 200, twiml: twiml('This business has reached its monthly message limit. Please try again next month.'), jobId: null, reason: 'quota_exceeded', sentViaApi: false };
+        }
+      } else {
+        store.addJob(job);
+      }
+    } else jobs.push(job);
     const reply = isFirst
       ? `${firstMessagePrefix(tenant)} Thanks for your message. I have logged it and will follow up.`
       : 'Thanks for your message. I have logged it and will follow up.';

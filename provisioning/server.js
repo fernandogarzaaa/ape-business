@@ -62,6 +62,7 @@ function createServerWithStore(store) {
     if (b.connectors != null && !Array.isArray(b.connectors)) return 'connectors must be an array';
     if (b.maxSteps != null && (!Number.isInteger(b.maxSteps) || b.maxSteps < 1 || b.maxSteps > 1000)) return 'maxSteps out of range';
     if (b.maxCostUsd != null && (!Number.isFinite(Number(b.maxCostUsd)) || Number(b.maxCostUsd) <= 0)) return 'maxCostUsd invalid';
+    if (b.maxJobsPerMonth != null && (!Number.isInteger(b.maxJobsPerMonth) || b.maxJobsPerMonth <= 0)) return 'maxJobsPerMonth must be a positive integer (omit for unlimited)';
     return null;
   }
 
@@ -121,17 +122,22 @@ function createServerWithStore(store) {
         return sendJson(res, 404, { error: 'tenant_not_found' });
       }
 
-      // Shopify OAuth callback: HMAC + signed state, then the code
-      // is exchanged and the token encrypted into the tenant vault.
-      if (req.method === 'POST' && isTenantRoute && parts[3] === 'connect' && parts[4] === 'shopify' && parts[5] === 'callback') {
-        const b = await readJsonBody(req);
+      // Shopify OAuth callback: Shopify redirects the browser with
+      // a GET + query string; a POST JSON bridge is also accepted.
+      // ALL fields (state, shop, code) come from the ONE parameter
+      // set the HMAC verified — never mixed with outer body fields.
+      if ((req.method === 'POST' || req.method === 'GET') && isTenantRoute && parts[3] === 'connect' && parts[4] === 'shopify' && parts[5] === 'callback') {
+        const b = req.method === 'GET'
+          ? Object.fromEntries(url.searchParams)
+          : await readJsonBody(req);
+        const fields = b.query && typeof b.query === 'object' ? b.query : b;
         const shopify = require('./connectors/shopify');
         const secret = process.env.SHOPIFY_CLIENT_SECRET || '';
-        const payload = shopify.verifyState(b.state, secret);
-        if (!payload || payload.tenantId !== tenantId || payload.shop !== b.shop) {
+        const payload = shopify.verifyState(fields.state, secret);
+        if (!payload || payload.tenantId !== tenantId || payload.shop !== fields.shop) {
           return sendJson(res, 400, { error: 'bad_state' });
         }
-        if (!shopify.verifyCallbackHmac(b.query || b, secret)) {
+        if (!shopify.verifyCallbackHmac(fields, secret)) {
           return sendJson(res, 400, { error: 'bad_hmac' });
         }
         const t = store.getTenant(tenantId);
@@ -140,7 +146,7 @@ function createServerWithStore(store) {
           const { encrypt } = require('./lib/vault');
           const deps = createServerWithStore.shopifyDeps || {};
           const out = await shopify.exchangeCode({
-            shop: b.shop, code: b.code,
+            shop: fields.shop, code: fields.code,
             clientId: process.env.SHOPIFY_CLIENT_ID, clientSecret: secret,
           }, deps);
           store.putCredential(tenantId, 'shopify', encrypt(out.accessToken));
@@ -151,7 +157,8 @@ function createServerWithStore(store) {
           return sendJson(res, 502, { error: 'oauth_exchange_failed' });
         }
         if (!t.connected.includes('shopify')) t.connected.push('shopify');
-        t.status = 'connected';
+        // Never regress the lifecycle: a paid/ready tenant stays so.
+        if (t.status === 'created' || t.status === 'connected') t.status = 'connected';
         store.putTenant(t);
         return sendJson(res, 200, { tenantId: t.id, system: 'shopify', oauth: 'complete', scope: 'read-only' });
       }

@@ -203,14 +203,16 @@ try {
     }
     record('cloudwatch', 'PutMetricAlarm', { alarm: `ape-${tenantId}-log-errors` });
     if (live) {
+      // Metric-filter dimensions require values extracted from the
+      // log event; an unstructured pattern cannot supply one. Use a
+      // per-tenant metric NAME instead (no dimensions anywhere).
       try {
         aws(['logs', 'put-metric-filter', '--log-group-name', logGroup,
           '--filter-name', 'ape-errors', '--filter-pattern', '?ERROR ?error ?FATAL',
-          '--metric-transformations', `metricName=ApeErrors,metricNamespace=APE/Tenants,metricValue=1,dimensions={Tenant=${tenantId}}`]);
+          '--metric-transformations', `metricName=ApeErrors-${tenantId},metricNamespace=APE/Tenants,metricValue=1`]);
       } catch { /* metric filter is best-effort beside the alarm */ }
       aws(['cloudwatch', 'put-metric-alarm', '--alarm-name', `ape-${tenantId}-log-errors`,
-        '--namespace', 'APE/Tenants', '--metric-name', 'ApeErrors',
-        '--dimensions', `Name=Tenant,Value=${tenantId}`,
+        '--namespace', 'APE/Tenants', '--metric-name', `ApeErrors-${tenantId}`,
         '--statistic', 'Sum', '--period', '300', '--evaluation-periods', '1',
         '--threshold', '5', '--comparison-operator', 'GreaterThanOrEqualToThreshold',
         '--alarm-actions', env('APE_ALARM_TOPIC_ARN'),
@@ -230,6 +232,25 @@ try {
     console.error('auto-rollback of completed steps: ' + completed.slice().reverse().join(', '));
     // Best-effort reverse cleanup; full/audited teardown is rollback.js.
     const undo = {
+      alarms: () => {
+        try { aws(['cloudwatch', 'delete-alarms', '--alarm-names', `ape-${tenantId}-tg-unhealthy`, `ape-${tenantId}-log-errors`]); } catch {}
+      },
+      albRouting: () => {
+        // Routing must not outlive the task it points at.
+        try {
+          const rules = awsJson(['elbv2', 'describe-rules', '--listener-arn', env('APE_ALB_LISTENER_ARN')]);
+          for (const r of rules.Rules || []) {
+            const acts = JSON.stringify(r.Actions || []);
+            if (targetGroupArn && acts.includes(targetGroupArn)) {
+              aws(['elbv2', 'delete-rule', '--rule-arn', r.RuleArn]);
+            }
+          }
+        } catch {}
+        if (targetGroupArn) { try { aws(['elbv2', 'delete-target-group', '--target-group-arn', targetGroupArn]); } catch {} }
+      },
+      runTask: () => {
+        if (taskArn) { try { aws(['ecs', 'stop-task', '--cluster', env('APE_CLUSTER'), '--task', taskArn]); } catch {} }
+      },
       logGroup: () => {}, // logs retained for audit, never deleted here
       taskDefinition: () => { try { aws(['ecs', 'deregister-task-definition', '--task-definition', `ape-tenant-${tenantId}`]); } catch {} },
       secret: () => { try { aws(['secretsmanager', 'delete-secret', '--secret-id', secretName, '--recovery-window-in-days', '7']); } catch {} },

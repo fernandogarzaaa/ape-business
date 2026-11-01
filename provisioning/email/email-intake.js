@@ -188,14 +188,6 @@ function createEmailHandler(options) {
     if (!checkRateLimit(tenant.id, from, ts)) {
       return { status: 200, jobId: null, reason: 'rate_limited', replyDraft: null };
     }
-    if (store && tenant.maxJobsPerMonth) {
-      const monthStart = new Date(ts);
-      monthStart.setUTCDate(1);
-      monthStart.setUTCHours(0, 0, 0, 0);
-      if (store.countJobsSince(tenant.id, monthStart.toISOString()) >= tenant.maxJobsPerMonth) {
-        return { status: 200, jobId: null, reason: 'quota_exceeded', replyDraft: null };
-      }
-    }
     // Intake record only — no tool is dispatched here; the Sigil
     // gate runs in the APE loop. The record says so.
     const sigil = { checked: false, policy: tenant.sigilPolicy || 'standard', decision: 'not_applicable', reason: 'intake_only_no_tool_dispatch' };
@@ -215,7 +207,20 @@ function createEmailHandler(options) {
       sealbox: { subject: sealedSubject.audit, body: sealedBody.audit },
       status: 'unverified', sigil, createdAt: new Date(ts).toISOString(),
     };
-    if (store) store.addJob(job); else jobs.push(job);
+    if (store) {
+      const stored = store.getTenant(tenant.id);
+      const limit = stored?.maxJobsPerMonth ?? tenant.maxJobsPerMonth;
+      if (limit != null) {
+        const monthStart = new Date(ts);
+        monthStart.setUTCDate(1);
+        monthStart.setUTCHours(0, 0, 0, 0);
+        if (!store.addJobWithQuota(tenant.id, job, limit, monthStart.toISOString())) {
+          return { status: 200, jobId: null, reason: 'quota_exceeded', replyDraft: null };
+        }
+      } else {
+        store.addJob(job);
+      }
+    } else jobs.push(job);
     // Draft quotes the TOKENIZED subject: the old draft interpolated
     // the raw subject and leaked PII the dispatch body had removed.
     const replyDraft = isFirst
