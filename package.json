@@ -44,7 +44,7 @@
     "test:harness": "node --test tests/harness.test.js"
   },
   "dependencies": {
-    "zod": "^3.23.8",
+    "zod": "^4.6.6",
     "yaml": "^2.4.0",
     "@modelcontextprotocol/server": "^2.0.0"
   },
