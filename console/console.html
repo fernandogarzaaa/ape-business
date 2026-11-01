@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>APE â€” CLI + Observability</title>
+<style>
+:root{--bg:#0b1020;--card:#141a2e;--ink:#e8eefc;--muted:#93a0c2;--obs:#3dd68c;--sim:#f5c542;--der:#6ea8ff;--fc:#ff8a5b;--bad:#ff5d73;--line:#243056;--btn:#1c2544}
+*{box-sizing:border-box}body{margin:0;font-family:ui-sans-serif,system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+header{padding:14px 20px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+h1{margin:0;font-size:18px}h1 span{color:var(--sim)}nav button,.btn{background:var(--btn);color:var(--ink);border:1px solid #334070;padding:8px 12px;border-radius:6px;cursor:pointer;font-size:13px;margin:2px}
+nav button.active{background:#2a3a6e;border-color:var(--sim)}main{padding:16px 20px;display:grid;gap:12px;max-width:1200px;margin:0 auto}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.badge{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;margin-right:6px}
+.obs{background:#123b2a;color:var(--obs);border:1px solid #1f6a48}.sim{background:#3b3110;color:var(--sim);border:1px solid #8a7018}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+.muted{color:var(--muted);font-size:13px}pre{white-space:pre-wrap;font-size:12px;color:#c9d4f0}
+#cli{position:sticky;bottom:0;display:flex;gap:8px}.pulse{animation:pulse 1.2s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(245,197,66,.5)}70%{box-shadow:0 0 0 10px rgba(245,197,66,0)}100%{box-shadow:0 0 0 0 rgba(245,197,66,0)}}
+.flow{stroke-dasharray:6 6;animation:flow 1s linear infinite}@keyframes flow{to{stroke-dashoffset:-12}}
+.fadein{animation:fade .4s ease}@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1}}
+canvas#bg{position:fixed;inset:0;z-index:-1;opacity:.35}
+@media (prefers-reduced-motion:reduce){.pulse,.flow,.fadein{animation:none}canvas#bg{display:none}}
+input,select{flex:1;background:#0a0e1c;color:var(--ink);border:1px solid #334070;border-radius:6px;padding:8px 10px;font-size:13px}
+</style>
+</head>
+<body>
+<canvas id="bg"></canvas>
+<header>
+<div><h1>APE <span>CLI + Observability</span></h1><div class="muted">Genesis + EVE + ADAM + Skein · stateless MCP 2026-07-28 · state in handles</div></div>
+<nav><button class="active" data-tab="trace">Live Trace</button><button data-tab="tasks">Tasks</button><button data-tab="runs">Runs</button><button data-tab="graph">Task Graph</button><button data-tab="exp">Experience</button><button data-tab="ledger">Ledger</button><button data-tab="mods">Mods</button><button data-tab="agent">Agent</button></nav>
+</header>
+<main>
+<section class="card"><span class="badge obs">OBSERVED</span><span class="badge sim">SIMULATED</span><span class="badge" style="background:#132544;color:var(--der)">DERIVED</span><span class="muted"> — provenance labels mandatory; simulated output is never observation.</span> <span id="status" class="muted"></span> <span id="spend" class="muted"></span></section>
+<section class="card" id="tab-trace"><h3>Live Trace <span class="muted">poll /api/trace?since= Â· animated waterfall</span></h3><svg width="100%" height="46" aria-hidden="true"><line x1="0" y1="23" x2="100%" y2="23" stroke="#f5c542" stroke-width="2" class="flow"/></svg><table><thead><tr><th>ts</th><th>tool</th><th>ms</th><th>summary</th></tr></thead><tbody id="rows"></tbody></table></section>
+<section class="card" id="tab-tasks" hidden><h3>Tasks <span class="muted">background runs (Tasks extension) · start via CLI: ape_task_start</span></h3><table><thead><tr><th>id</th><th>tool</th><th>status</th><th>finished</th></tr></thead><tbody id="taskrows"></tbody></table></section>
+<section class="card" id="tab-runs" hidden><h3>Agent Runs <span class="muted">reasoning loops + step ledger + receipts — click a row for detail</span></h3><table><thead><tr><th>run</th><th>profile</th><th>model</th><th>status</th><th>steps</th><th>cost</th><th>started</th></tr></thead><tbody id="runrows"></tbody></table><pre id="rundetail" class="muted">select a run above</pre></section>
+<section class="card" id="tab-graph" hidden><h3>Task Graph <span class="muted">skein: claim → worktree → verify gate → handoff</span></h3><pre id="graph" class="muted">loading…</pre></section>
+<section class="card" id="tab-exp" hidden><h3>Experience <span class="muted">EVE: recent validations (persona + seed + evidence)</span></h3><div id="exp" class="muted">loading…</div></section>
+<section class="card" id="tab-ledger" hidden><h3>Ledger <span class="muted">genesis audits + ADAM governance (hash-chained)</span></h3><table><thead><tr><th>ts</th><th>kind</th><th>verdict/entry</th></tr></thead><tbody id="ledgerrows"></tbody></table></section>
+<section class="card" id="tab-mods" hidden><h3>Mods <span class="muted">config + mods/ dir</span></h3><div id="mods" class="muted">loading…</div></section>
+<section class="card" id="tab-agent" hidden><h3>Agent <span class="muted">profiles + connectors + starter templates — everything the loop is built from</span></h3>
+<div class="muted"><b>Profiles</b> (bundled ship in <span class="muted">profiles/</span>; yours save to <span class="muted">.ape/profiles/</span> and win on name clash):</div>
+<div id="profilelist" class="muted">loading…</div>
+<div class="muted" style="margin-top:8px"><b>Connectors</b> (bundled in <span class="muted">connectors/</span>; yours save to <span class="muted">.ape/connectors/</span>):</div>
+<div id="connectorlist" class="muted">loading…</div>
+<div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+<button class="btn" onclick="newDoc('profile')">New profile from template</button>
+<button class="btn" onclick="newDoc('connector')">New connector from template</button>
+<button class="btn" onclick="saveDoc()">Save</button>
+<span id="savemsg" class="muted"></span>
+</div>
+<div class="muted" style="margin-top:4px">editing: <b id="editname">—</b> <span id="editsource" class="muted"></span></div>
+<textarea id="editor" rows="18" style="width:100%;background:#0a0e1c;color:#c9d4f0;border:1px solid #334070;border-radius:6px;padding:8px;font-size:12px;font-family:ui-monospace,monospace" placeholder="select a profile/connector above, or start from a template"></textarea>
+<div class="muted" style="margin-top:8px"><b>Guidance.</b> model <span class="muted">provider: auto</span> reuses the host's active provider; pin <span class="muted">id</span> to fix the model. <span class="muted">tools</span> is the allowlist: <span class="muted">engine:</span> maps to an <span class="muted">ape_*</span> tool, <span class="muted">builtin:</span> is memory/finish, <span class="muted">connector:</span> names your YAML. <span class="muted">policy.destructive</span> defaults to <span class="muted">deny</span> (allow is still capped + audited). <span class="muted">verify_before_finish: enforce</span> rejects finish without a verification step. Connectors need <span class="muted">egress_allow</span> + auth by env name; <span class="muted">destructive: true</span> ops ask for confirm.</div>
+</section>
+<section class="card"><h3>CLI <span class="muted">same dispatch as MCP tools/call</span></h3><div id="cli"><select id="tool"></select><input id="args" value='{}'/><button class="btn pulse" onclick="call()">Run</button></div><pre id="out"></pre></section>
+</main>
+<script>
+let since=0,tools=[];
+document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{document.querySelectorAll("nav button").forEach(x=>x.classList.remove("active"));b.classList.add("active");["trace","tasks","runs","graph","exp","ledger","mods","agent"].forEach(t=>document.getElementById("tab-"+t).hidden=t!==b.dataset.tab);});
+async function init(){const t=await(await fetch("/api/tools")).json();tools=t.tools||[];document.getElementById("tool").innerHTML=tools.map(x=>`<option>${x.name}</option>`).join("");document.getElementById("status").textContent=`${tools.length} tools Â· ttlMs ${t.ttlMs}`;}
+async function poll(){const r=await(await fetch("/api/trace?since="+since)).json();since=r.count||since;const tb=document.getElementById("rows");(r.events||[]).slice(-30).forEach(e=>{const tr=document.createElement("tr");tr.className="fadein";tr.innerHTML=`<td>${(e.ts||"").slice(11,19)}</td><td>${e.tool}</td><td>${e.durationMs}</td><td>${(e.resultSummary||"").slice(0,120)}</td>`;tb.prepend(tr);});while(tb.rows.length>30)tb.deleteRow(-1);try{const t=await(await fetch("/api/tasks")).json();const tt=document.getElementById("taskrows");tt.innerHTML=(t.tasks||[]).map(x=>`<tr><td>${x.id}</td><td>${x.tool}</td><td>${x.status}</td><td>${(x.finished||"â€”").slice(11,19)}</td></tr>`).join("");}catch{}try{const L=await(await fetch("/api/ledger")).json();document.getElementById("ledgerrows").innerHTML=(L.entries||[]).map(e=>{const d=(e.kind||"")==="agent.destructive";return `<tr${d?' style="background:#3b1a1a"':""}><td>${(e.ts||"").slice(11,19)}</td><td>${d?"⚠ "+e.kind:e.kind||""}</td><td>${e.verdict||""} ${e.ledger_entry||""} ${e.tool||""}</td></tr>`;}).join("");}catch{}try{const S=await(await fetch("/api/spend")).json();document.getElementById("spend").textContent=`· spend $${Number(S.today_usd||0).toFixed(4)}/$${S.daily_cap_usd} · runs ${S.running}/${S.max_concurrent}`;}catch{}}
+async function call(){const name=document.getElementById("tool").value;let a={};try{a=JSON.parse(document.getElementById("args").value||"{}")}catch(e){document.getElementById("out").textContent="bad JSON args";return}const r=await(await fetch("/api/call",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name,arguments:a})})).json();document.getElementById("out").textContent=JSON.stringify(r,null,2).slice(0,6000);poll();}
+async function pollSlow(){try{const g=await(await fetch("/api/graph")).json();document.getElementById("graph").textContent=(g.graph?.output||JSON.stringify(g.graph)).slice(0,3000);}catch{document.getElementById("graph").textContent="graph unavailable";}try{const e=await(await fetch("/api/experience")).json();document.getElementById("exp").innerHTML=(e.runs||[]).length?(e.runs||[]).map(x=>`<div><b>${x.tool}</b> <span class="muted">${(x.ts||"").slice(11,19)} · ${x.durationMs}ms</span><br/>${(x.resultSummary||"").slice(0,240)}</div>`).join(""):"no EVE runs yet — use ape_validate_experience";}catch{}try{const m=await(await fetch("/api/mods")).json();document.getElementById("mods").innerHTML=(m.mods||[]).map(x=>`<div>${x.name} <span class="muted">v${x.version} · preCall=${x.preCall} postCall=${x.postCall}</span></div>`).join("")+'<div class="muted">Toggle: mods/&lt;name&gt;/mod.json {"enabled":false}.</div>';}catch{}}
+init();poll();pollSlow();pollRuns();pollAgent();setInterval(poll,2000);setInterval(pollSlow,10000);
+let sseOk = false;
+try {
+  const es = new EventSource("/api/runs/stream");
+  es.addEventListener("run", () => { sseOk = true; pollRuns(); });
+  es.addEventListener("step", (e) => {
+    sseOk = true;
+    try {
+      const s = JSON.parse(e.data);
+      const tb = document.getElementById("runrows");
+      if (tb && !document.getElementById("tab-runs").hidden) pollRuns();
+    } catch {}
+  });
+  es.addEventListener("spend", (e) => {
+    try {
+      const S = JSON.parse(e.data);
+      document.getElementById("spend").textContent = `· spend $${Number(S.today_usd||0).toFixed(4)}/$${S.daily_cap_usd} · runs ${S.running}/${S.max_concurrent} · live`;
+    } catch {}
+  });
+  es.onerror = () => { try { es.close(); } catch {} if (!sseOk) setInterval(pollRuns, 5000); };
+} catch { setInterval(pollRuns, 5000); }
+async function pollRuns(){try{const R=await(await fetch("/api/runs")).json();const tb=document.getElementById("runrows");tb.innerHTML=(R.runs||[]).map(x=>`<tr data-run="${x.run_id}" onclick="showRun('${x.run_id}')" style="cursor:pointer"><td>${(x.run_id||"").slice(0,13)}</td><td>${x.profile||""}</td><td>${(x.model||"").slice(0,28)}</td><td>${x.status||""}${x.unverified?" ⚠":""}</td><td>${x.step_count??""}</td><td>$${Number(x.total_cost||0).toFixed(4)}</td><td>${(x.started_at||"").slice(11,19)}</td></tr>`).join("");}catch{}}
+async function showRun(id){try{const R=await(await fetch("/api/runs/get?run_id="+encodeURIComponent(id))).json();const r=R.run||{};const steps=(r.steps||[]).map(s=>`#${s.step} [${s.kind}] ${s.tool||"model"} ${s.durationMs||0}ms ${s.tokens||0}tok $${Number(s.cost||0).toFixed(5)}\n  ${(s.resultSummary||"").slice(0,200)}`).join("\n");document.getElementById("rundetail").textContent=`${r.run_id}\nprofile=${r.profile} model=${r.model} stop=${r.stop_reason}${r.unverified?" UNVERIFIED":""}\nsteps=${r.step_count} tokens=${r.total_tokens} cost=$${Number(r.total_cost||0).toFixed(5)}\noutcome: ${(r.outcome||"").slice(0,600)}\n--- steps ---\n${steps.slice(-3000)}`;}catch{document.getElementById("rundetail").textContent="run unavailable";}}
+let editKind=null,editName=null;
+async function pollAgent(){try{const P=await(await fetch("/api/profiles")).json();document.getElementById("profilelist").innerHTML=(P.profiles||[]).map(p=>`<div><a href="#" onclick="loadDoc('profile','${p.name}');return false">${p.name}</a> <span class="muted">${(p.description||"").slice(0,80)} · ${p.model?.provider}/${p.model?.id}</span> <a href="#" onclick="analyzeProfile('${p.name}');return false" title="analyze recent runs and propose profile edits">[analyze]</a></div>`).join("");}catch{}try{const C=await(await fetch("/api/connectors")).json();document.getElementById("connectorlist").innerHTML=(C.connectors||[]).map(c=>`<div><a href="#" onclick="loadDoc('connector','${c.name}');return false">${c.name}</a> <span class="muted">${(c.operations||[]).map(o=>o.name).join(", ")} · [${(c.egress_allow||[]).join(", ")}]</span></div>`).join("")||"none — create one from the template below";}catch{}}
+async function loadDoc(kind,name){try{const R=await(await fetch("/api/"+kind+"?name="+encodeURIComponent(name))).json();if(R.yaml){editKind=kind;editName=name;document.getElementById("editor").value=R.yaml;document.getElementById("editname").textContent=kind+"/"+name;document.getElementById("editsource").textContent="("+R.source+")";}}catch{}}
+async function newDoc(kind){try{const R=await(await fetch("/api/templates")).json();editKind=kind;editName="my-"+kind;document.getElementById("editor").value=kind==="profile"?R.profile:R.connector;document.getElementById("editname").textContent="new "+kind+" (rename + save)";document.getElementById("editsource").textContent="";}catch{}}
+async function saveDoc(){const msg=document.getElementById("savemsg");try{const v=document.getElementById("editor").value;const m=v.match(/^name:\s*([A-Za-z0-9_-]+)/m);const name=(m&&m[1])||editName||"unnamed";const R=await(await fetch("/api/"+editKind+"/save",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name,yaml:v})})).json();msg.textContent=R.ok?("saved "+R.kind+"/"+R.name):("error: "+R.error);pollAgent();}catch(e){msg.textContent="save failed";}}
+async function analyzeProfile(name){const msg=document.getElementById("savemsg");try{msg.textContent="analyzing "+name+"…";const R=await(await fetch("/api/call",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:"ape_agent_analyze",arguments:{profile:name,window:20}})})).json();const a=R.structuredContent?.result??R;const lines=(a.findings||[]).map(f=>`· ${f.metric}: ${typeof f.value==="object"?JSON.stringify(f.value):f.value} — ${f.detail||""}`);const patches=(a.suggestions||[]).map(s=>`→ [${s.finding}] ${s.rationale}${s.patch?" | patch: "+JSON.stringify(s.patch):""}`);document.getElementById("editor").value=`# analysis of ${name} (${a.runs??0} runs)\n#\n# findings:\n${lines.map(l=>"# "+l).join("\n")}\n#\n# suggested patches (apply by editing the profile YAML):\n${patches.map(l=>"# "+l).join("\n")}`;document.getElementById("editname").textContent="analysis/"+name;msg.textContent=(a.suggestions||[]).length?((a.suggestions||[]).length+" suggestion(s) — review above, then edit + save"):"no suggestions (healthy)";}catch(e){msg.textContent="analysis failed";}}
+// ambient particle drift (rich motion, paused when hidden)
+const c=document.getElementById("bg"),x=c.getContext("2d");let P=[];function rs(){c.width=innerWidth;c.height=innerHeight}rs();addEventListener("resize",rs);for(let i=0;i<70;i++)P.push({x:Math.random()*innerWidth,y:Math.random()*innerHeight,v:.3+Math.random()*.7});
+(function tick(){if(!document.hidden){x.clearRect(0,0,c.width,c.height);x.fillStyle="#f5c542";P.forEach(p=>{p.y-=p.v;if(p.y<0)p.y=innerHeight;x.globalAlpha=.25;x.fillRect(p.x,p.y,1.6,1.6)});x.globalAlpha=1}requestAnimationFrame(tick)})();
+</script>
+</body>
+</html>

@@ -1,3 +1,27 @@
+# Sigil demo (Meta hackathon)
+
+APE runs the agent. Before any tool call runs, a Sigil gate checks
+that tool server's badge: trusted calls run, untrusted calls are
+blocked, and both outcomes go to the audit trail. This is the demo
+this repo submits for the Meta hackathon.
+
+- Run the offline demo: `node demo/sigil-gate-demo.mjs`
+- Gate tests: `node --test tests/sigil-gate.test.js tests/sigil-gate-invoke.test.js tests/sigil-gate-hardening.test.js tests/meta-provider.test.js` (22 tests)
+- Start with `demo/README.md`. Gate code: `src/agent/sigil-gate.js`, wiring in `src/agent/registry.js`, Meta provider (Muse Wonder 1.0 via the Meta Model API, key from environment only) in `src/agent/providers.js`.
+
+Honest labels, read before believing anything else on this page:
+
+- Gate policy is PROPOSED, not confirmed: block high, critical,
+  unknown, bad signature, and revoked; allow low and medium.
+- fixture-server 0.1.0 is a Sigil test fixture, not a real MCP server.
+- Everything beyond the demo loop is test mode or dry run, $0 spent.
+  No live Stripe, AWS, or SMS is claimed.
+- No production Sealbox vault is claimed.
+- A badge proves identity, version, and risk level only, not that
+  an agent is good at its job.
+
+---
+
 # APE for Business
 
 One agent per business. A business adopts its own APE, for a new or
@@ -59,7 +83,7 @@ HANDOFF.md for the current phase and what is still mock.
 ## Run the tests (no spend, no network)
 
 ```
-npm test   # SMS, email, Stripe, AWS dry run, production regressions, e2e gate
+npm run test:provisioning   # SMS, email, Stripe, AWS dry run, production regressions, e2e gate
 ```
 
 ## Secrets rule

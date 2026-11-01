@@ -1,0 +1,26 @@
+[package]
+name = "adam-organism"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+adam-kernel = { path = "../adam-kernel" }
+adam-memory = { path = "../adam-memory" }
+adam-skills = { path = "../adam-skills" }
+adam-beliefs = { path = "../adam-beliefs" }
+adam-evolution = { path = "../adam-evolution" }
+adam-eve = { path = "../adam-eve" }
+adam-protocol = { path = "../adam-protocol" }
+adam-governance = { path = "../adam-governance" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+thiserror = { workspace = true }
+fastembed = { version = "6.0.1", default-features = false, features = ["ort-download-binaries-native-tls", "hf-hub-native-tls"] }
+
+[dev-dependencies]
+adam-eventlog = { path = "../adam-eventlog" }

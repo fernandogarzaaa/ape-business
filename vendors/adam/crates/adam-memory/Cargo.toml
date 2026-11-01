@@ -1,0 +1,24 @@
+[package]
+name = "adam-memory"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "ADAM Memory System: episodic, semantic, procedural, and self memory with provenance, decay, and conflict resolution"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+thiserror.workspace = true
+rusqlite.workspace = true
+instant-distance = "0.6.1"
+
+[dev-dependencies]
+criterion = "0.5"
+
+[[bench]]
+name = "retrieval"
+harness = false

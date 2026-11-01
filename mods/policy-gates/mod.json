@@ -1,0 +1,1 @@
+{"name": "policy-gates", "version": "1.0.0", "enabled": true, "description": "MRTR-style confirm for destructive APE ops (evolve accept, force release). Throw-safe: never breaks core."}

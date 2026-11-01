@@ -1,0 +1,41 @@
+name: python-review-sentiment
+claim:
+  id: claim-py-001
+  statement: "The Python keyword classifier reaches >=80% accuracy on review sentiment."
+  hypothesis:
+    primary:
+      metric: accuracy
+      operator: ">="
+      threshold: 0.8
+  methodology:
+    paired: true
+    repetitions: 1
+    minimum_samples: 6
+  evaluation:
+    metrics:
+      - accuracy
+      - precision
+      - recall
+      - f1
+dataset:
+  path: ./examples/python-classifier/cases.jsonl
+  format: jsonl
+  id: python-reviews
+  version: "1"
+subject:
+  name: python-keyword-classifier
+  command: "python ./examples/python-classifier/subject.py {task_file}"
+  timeout_ms: 30000
+evaluator:
+  type: classification
+  positive: positive
+  scoreField: score
+metrics:
+  - accuracy
+  - precision
+  - recall
+  - f1
+repetitions: 1
+paired: true
+thresholds:
+  accuracy: ">=0.8"

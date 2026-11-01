@@ -1,0 +1,10 @@
+import { dispatchCall, toolsList, discover } from "../src/server.js";
+const t = toolsList();
+if (!t.tools.find((x) => x.name === "ape_status")) throw new Error("missing ape_status");
+const d = discover();
+if (d.protocol !== "2026-07-28") throw new Error("protocol pin");
+const s = await dispatchCall("ape_status", {});
+if (s.resultType !== "complete") throw new Error("status failed");
+const e = await dispatchCall("ape_evolve", { action: "accept", proposal_id: "x" });
+if (e.resultType !== "input_required") throw new Error("MRTR confirm missing");
+console.log(`smoke ok: ${t.tools.length} tools, engines=${JSON.stringify(s.structuredContent.result.engines)}`);

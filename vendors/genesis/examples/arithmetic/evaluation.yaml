@@ -1,0 +1,50 @@
+name: doubling-service
+claim:
+  id: claim-double-001
+  statement: "The candidate doubles numeric inputs with >=87.5% task success (7/8), outperforming the echo baseline."
+  hypothesis:
+    primary:
+      metric: task_success
+      operator: ">="
+      threshold: 0.875
+  population:
+    dataset: arithmetic-cases
+    version: "1"
+  baseline:
+    name: echo-baseline
+  treatment:
+    name: doubling-candidate
+  methodology:
+    paired: true
+    repetitions: 2
+    minimum_samples: 8
+  evaluation:
+    metrics:
+      - task_success
+      - mean_latency_ms
+      - p95_latency_ms
+  conclusion_policy:
+    insufficient_evidence: INCONCLUSIVE
+dataset:
+  path: ./examples/arithmetic/cases.jsonl
+  format: jsonl
+  id: arithmetic-cases
+  version: "1"
+subject:
+  name: doubling-candidate
+  command: "node ./examples/arithmetic/candidate.mjs {task_file}"
+  timeout_ms: 10000
+baseline:
+  name: echo-baseline
+  command: "node ./examples/arithmetic/baseline.mjs {task_file}"
+  timeout_ms: 10000
+evaluator:
+  type: exact
+metrics:
+  - task_success
+  - mean_latency_ms
+  - p95_latency_ms
+repetitions: 2
+paired: true
+thresholds:
+  task_success: ">=0.875"

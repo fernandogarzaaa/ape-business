@@ -1,0 +1,63 @@
+# .github/workflows/genesis-regression.yml (template — copy into your repo)
+#
+# Gates releases on a versioned Genesis benchmark. Fails the build when the
+# candidate regresses beyond thresholds relative to the checked-in baseline.
+#
+# Required setup:
+#   1. BENCHMARK: a registry name from `genesis benchmarks`
+#      (or set REGISTRY to a custom benchmarks directory).
+#   2. SUBJECT_CMD: how CI invokes the system under test. Must honor the
+#      adapter protocol (adapters/PROTOCOL.md): receives the task file path
+#      via {task_file}, emits the output on stdout.
+#   3. results/baseline: a bundle recorded once from a known-good revision
+#      (see templates/ci/README.md) and committed to the repo.
+
+name: genesis-regression
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+env:
+  BENCHMARK: sentiment-v1
+  SUBJECT_CMD: "python ./classifier.py {task_file}"
+  MAX_QUALITY_DROP: "0.02"
+  MAX_LATENCY_INCREASE: "0.15"
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install Genesis
+        run: npm install -g genesis-assurance
+        # ...or build from source: npm ci && npm run build
+
+      - name: Run benchmark (candidate)
+        run: |
+          genesis run-benchmark "$BENCHMARK" \
+            --subject "$SUBJECT_CMD" \
+            --out ./results/current
+
+      - name: Gate on regression vs checked-in baseline
+        run: |
+          genesis regression \
+            --base ./results/baseline \
+            --candidate ./results/current \
+            --max-quality-drop "$MAX_QUALITY_DROP" \
+            --max-latency-increase "$MAX_LATENCY_INCREASE"
+
+      - name: Upload evidence bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: genesis-evidence
+          path: results/current

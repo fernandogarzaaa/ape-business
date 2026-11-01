@@ -1,0 +1,20 @@
+name: retrieval-v1
+benchmark:
+  version: 1.0.0
+  description: "Support-doc retrieval over 8 queries: precision, recall, and F1 against fixed relevant-id sets."
+dataset:
+  path: ./cases.jsonl
+  format: jsonl
+  id: retrieval-v1
+  version: "1.0.0"
+evaluator:
+  type: retrieval
+metrics:
+  - retrieval_precision
+  - retrieval_recall
+  - retrieval_f1
+  - task_success
+repetitions: 1
+paired: true
+thresholds:
+  retrieval_recall: ">=0.75"

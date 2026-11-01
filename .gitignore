@@ -3,17 +3,40 @@
 provisioning/aws/calls.json
 provisioning/aws/rollback-calls.json
 provisioning/aws/dry-run-report.json
-
-# Production data (SQLite store, tenant files, idempotency ledgers).
-# Bearer tokens live only as hashes in the DB; the DB still never commits.
+node_modules/
+.ape/
+.skein/
+.fastembed_cache/
+.tmp-*/
+adam_genome.json
+adam_memory.db
+*.db
+*.log
+.eve-output/
+target/
+.venv/
+__pycache__/
+# Standalone prebuilt outputs ARE committed:
+# `target/` ignores every dir named target; re-include ONLY the vendored ADAM release
+# binaries. Chain must re-include each parent dir before its children, then re-ignore
+# the rest so build artifacts (debug/, deps/, .fingerprint/, ...) never enter git.
+!vendors/adam/target/
+vendors/adam/target/*
+!vendors/adam/target/release/
+vendors/adam/target/release/*
+!vendors/adam/target/release/adam-mcp.exe
+!vendors/adam/target/release/adam-mcp
+!vendors/genesis/dist/
+!vendors/eve/dist/
 provisioning/data/
 provisioning/tenants/*.json
 provisioning/deployments/
-provisioning/stripe/processed-intents.json
-*.db
-*.db-wal
-*.db-shm
 .env
 .env.*
 !.env.example
-node_modules/
+
+# Production data (SQLite store, tenant files, idempotency ledgers).
+# Bearer tokens live only as hashes in the DB; the DB still never commits.
+provisioning/stripe/processed-intents.json
+*.db-wal
+*.db-shm

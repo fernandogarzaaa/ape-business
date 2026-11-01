@@ -1,0 +1,46 @@
+name: support-docs-retrieval
+claim:
+  id: claim-rag-001
+  statement: "Keyword retrieval reaches >=75% retrieval recall on support-doc queries, beating the static baseline."
+  hypothesis:
+    primary:
+      metric: retrieval_recall
+      operator: ">="
+      threshold: 0.75
+    secondary:
+      metric: retrieval_precision
+      operator: ">="
+      threshold: 0.5
+  methodology:
+    paired: true
+    repetitions: 1
+    minimum_samples: 8
+  evaluation:
+    metrics:
+      - retrieval_precision
+      - retrieval_recall
+      - retrieval_f1
+dataset:
+  path: ./examples/rag/cases.jsonl
+  format: jsonl
+  id: support-docs-queries
+  version: "1"
+subject:
+  name: keyword-retriever
+  command: "node ./examples/rag/candidate.mjs {task_file}"
+  timeout_ms: 10000
+baseline:
+  name: static-baseline
+  command: "node ./examples/rag/baseline.mjs {task_file}"
+  timeout_ms: 10000
+evaluator:
+  type: retrieval
+metrics:
+  - retrieval_precision
+  - retrieval_recall
+  - retrieval_f1
+  - task_success
+repetitions: 1
+paired: true
+thresholds:
+  retrieval_recall: ">=0.75"

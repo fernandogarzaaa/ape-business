@@ -1,0 +1,54 @@
+name: review-sentiment
+claim:
+  id: claim-clf-001
+  statement: "The keyword classifier reaches >=75% accuracy with calibrated confidence (ECE <= 0.2), beating the always-positive baseline on F1."
+  hypothesis:
+    primary:
+      metric: accuracy
+      operator: ">="
+      threshold: 0.75
+    secondary:
+      metric: calibration_ece
+      operator: "<="
+      threshold: 0.2
+  methodology:
+    paired: true
+    repetitions: 1
+    minimum_samples: 8
+  evaluation:
+    metrics:
+      - accuracy
+      - precision
+      - recall
+      - f1
+      - roc_auc
+      - calibration_ece
+dataset:
+  path: ./examples/classification/cases.jsonl
+  format: jsonl
+  id: review-sentiment
+  version: "1"
+subject:
+  name: keyword-classifier
+  command: "node ./examples/classification/candidate.mjs {task_file}"
+  timeout_ms: 10000
+baseline:
+  name: always-positive
+  command: "node ./examples/classification/baseline.mjs {task_file}"
+  timeout_ms: 10000
+evaluator:
+  type: classification
+  positive: positive
+  scoreField: score
+metrics:
+  - accuracy
+  - precision
+  - recall
+  - f1
+  - roc_auc
+  - calibration_ece
+repetitions: 1
+paired: true
+thresholds:
+  accuracy: ">=0.75"
+  calibration_ece: "<=0.2"

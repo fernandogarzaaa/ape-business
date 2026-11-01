@@ -1,0 +1,46 @@
+name: web
+description: Read-only web research over the public Wikipedia API. No API key required.
+base_url: https://en.wikipedia.org
+egress_allow: [en.wikipedia.org]
+operations:
+  - name: search
+    method: GET
+    path: /w/api.php
+    query:
+      action: { const: query }
+      list: { const: search }
+      format: { const: json }
+      srsearch: { from: query }
+      srlimit: { from: limit, default: 3 }
+    input_schema:
+      type: object
+      required: [query]
+      properties:
+        query: { type: string }
+        limit: { type: number }
+    annotations: { readOnly: true, idempotent: true }
+  - name: page
+    method: GET
+    path: /w/api.php
+    query:
+      action: { const: query }
+      format: { const: json }
+      prop: { const: extracts }
+      explaintext: { const: 1 }
+      exlimit: { const: 1 }
+      titles: { from: title }
+    input_schema:
+      type: object
+      required: [title]
+      properties:
+        title: { type: string }
+    annotations: { readOnly: true, idempotent: true }
+  - name: summary
+    method: GET
+    path: /api/rest_v1/page/summary/{title}
+    input_schema:
+      type: object
+      required: [title]
+      properties:
+        title: { type: string }
+    annotations: { readOnly: true, idempotent: true }

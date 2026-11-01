@@ -1,0 +1,38 @@
+name: genesis-self-eval
+claim:
+  id: claim-genesis-001
+  statement: "Genesis checkHypothesis implementation satisfies its operator contract on all 10 operator cases."
+  hypothesis:
+    primary:
+      metric: task_success
+      operator: ">="
+      threshold: 1.0
+  methodology:
+    paired: true
+    repetitions: 1
+    minimum_samples: 10
+  evaluation:
+    metrics:
+      - task_success
+dataset:
+  path: ./examples/self-eval/cases.jsonl
+  format: jsonl
+  id: hypothesis-contract-cases
+  version: "1"
+subject:
+  name: checkHypothesis-candidate
+  command: "node ./examples/self-eval/candidate.mjs {task_file}"
+  timeout_ms: 10000
+baseline:
+  name: checkHypothesis-baseline-buggy
+  command: "node ./examples/self-eval/baseline.mjs {task_file}"
+  timeout_ms: 10000
+evaluator:
+  type: javascript
+  script: "return output && output.passed === task.reference;"
+metrics:
+  - task_success
+repetitions: 1
+paired: true
+thresholds:
+  task_success: ">=1.0"

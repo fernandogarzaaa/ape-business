@@ -1,0 +1,10 @@
+{
+  "name": "genesis",
+  "version": "0.2.0",
+  "description": "Universal evaluation and assurance for AI-native software: evaluate systems, audit evaluators, gate regressions.",
+  "author": {
+    "name": "fernandogarzaaa",
+    "url": "https://github.com/fernandogarzaaa/genesis"
+  },
+  "license": "MIT"
+}

@@ -53,6 +53,12 @@ jobs:
           echo 'console.log("fixture")' > /tmp/ape-mcp-fixture/src/index.js
           echo '#!/bin/sh' > /tmp/ape-mcp-fixture/bin/ape
           APE_MCP_ROOT=/tmp/ape-mcp-fixture sh provisioning/aws/build-image.sh ci-fixture
+      - name: Install demo dependencies
+        run: npm ci --ignore-scripts
+      - name: Sigil gate tests
+        run: node --test tests/sigil-gate.test.js tests/sigil-gate-invoke.test.js tests/sigil-gate-hardening.test.js tests/meta-provider.test.js
+      - name: Offline Sigil demo
+        run: node demo/sigil-gate-demo.mjs
       - name: No secret values in repo
         run: |
           # Env names are allowed. Real-looking secret values are not.

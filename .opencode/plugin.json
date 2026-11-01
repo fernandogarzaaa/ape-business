@@ -1,0 +1,1 @@
+{"name": "ape-mcp", "version": "1.0.0", "description": "APE standalone universal MCP: Genesis+EVE+ADAM+Skein in one server. No 5-repo clone.", "mcpServers": {"ape-mcp": {"command": "node", "args": ["bin/ape-mcp.js"]}}}

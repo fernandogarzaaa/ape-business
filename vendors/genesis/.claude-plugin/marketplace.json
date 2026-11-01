@@ -1,0 +1,16 @@
+{
+  "name": "genesis-marketplace",
+  "description": "Universal evaluation and assurance for AI-native software: evaluate systems, assure evaluators, gate regressions.",
+  "owner": {
+    "name": "fernandogarzaaa",
+    "url": "https://github.com/fernandogarzaaa/genesis"
+  },
+  "plugins": [
+    {
+      "name": "genesis",
+      "source": "./plugins/genesis",
+      "description": "Evaluate AI systems, audit LLM judges, and gate releases on benchmarks — backed by the Genesis MCP server.",
+      "version": "0.2.0"
+    }
+  ]
+}
