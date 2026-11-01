@@ -39,7 +39,9 @@
     "test:sigil": "node --test tests/sigil-gate.test.js tests/sigil-gate-invoke.test.js tests/sigil-gate-hardening.test.js tests/meta-provider.test.js",
     "test:provisioning": "node provisioning/sms/test-sms.js && node provisioning/email/test-email.js && node provisioning/stripe/test-stripe.js && node provisioning/aws/dry-run.js && node provisioning/test-production.js && node provisioning/e2e-test.js",
     "demo:sigil": "node demo/sigil-gate-demo.mjs",
-    "check": "for f in $(find provisioning -name '*.js' -not -path '*/node_modules/*'); do node --check \"$f\" || exit 1; done"
+    "check": "for f in $(find provisioning -name '*.js' -not -path '*/node_modules/*'); do node --check \"$f\" || exit 1; done",
+    "test:evals": "node evals/run.mjs",
+    "test:harness": "node --test tests/harness.test.js"
   },
   "dependencies": {
     "zod": "^3.23.8",

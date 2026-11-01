@@ -59,6 +59,8 @@ jobs:
         run: node --test tests/sigil-gate.test.js tests/sigil-gate-invoke.test.js tests/sigil-gate-hardening.test.js tests/meta-provider.test.js
       - name: Offline Sigil demo
         run: node demo/sigil-gate-demo.mjs
+      - name: Locked eval suite (golden tasks, mock provider)
+        run: node evals/run.mjs
       - name: No secret values in repo
         run: |
           # Env names are allowed. Real-looking secret values are not.

@@ -239,6 +239,16 @@ function createSmsHandler(options) {
     // gate runs inside the APE loop before any tool call. The record
     // says exactly that instead of claiming a gate check ran here.
     const sigil = { checked: false, policy: tenant.sigilPolicy || 'standard', decision: 'not_applicable', reason: 'intake_only_no_tool_dispatch' };
+    // Monthly quota from the tenant record (provisioning limit,
+    // enforced here at job creation, not just stored).
+    if (store && tenant.maxJobsPerMonth) {
+      const monthStart = new Date(ts);
+      monthStart.setUTCDate(1);
+      monthStart.setUTCHours(0, 0, 0, 0);
+      if (store.countJobsSince(tenant.id, monthStart.toISOString()) >= tenant.maxJobsPerMonth) {
+        return { status: 200, twiml: twiml('This business has reached its monthly message limit. Please try again next month.'), jobId: null, reason: 'quota_exceeded', sentViaApi: false };
+      }
+    }
     const sealed = sealbox.tokenize(body, tenant.id);
     const jobId = store
       ? 'job_' + crypto.randomUUID().slice(0, 8)

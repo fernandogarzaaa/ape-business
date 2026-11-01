@@ -188,6 +188,39 @@ try {
     record('elbv2', 'RoutingNotConfigured', { note: 'Set APE_ALB_LISTENER_ARN (+ APE_PUBLIC_DOMAIN) to route this tenant. No endpoint is claimed until then.' });
   }
 
+  // Step 8: alarms (only when an SNS topic is configured). A silent
+  // dead tenant was the audit's observability gap; these page a human.
+  if (env('APE_ALARM_TOPIC_ARN')) {
+    record('cloudwatch', 'PutMetricAlarm', { alarm: `ape-${tenantId}-tg-unhealthy` });
+    if (live && targetGroupArn) {
+      aws(['cloudwatch', 'put-metric-alarm', '--alarm-name', `ape-${tenantId}-tg-unhealthy`,
+        '--namespace', 'AWS/ApplicationELB', '--metric-name', 'UnHealthyHostCount',
+        '--dimensions', `Name=TargetGroup,Value=${targetGroupArn.split('/').slice(-2).join('/')}`,
+        '--statistic', 'Maximum', '--period', '300', '--evaluation-periods', '2',
+        '--threshold', '1', '--comparison-operator', 'GreaterThanOrEqualToThreshold',
+        '--alarm-actions', env('APE_ALARM_TOPIC_ARN'),
+        '--tags', `Key=ape:tenant,Value=${tenantId}`]);
+    }
+    record('cloudwatch', 'PutMetricAlarm', { alarm: `ape-${tenantId}-log-errors` });
+    if (live) {
+      try {
+        aws(['logs', 'put-metric-filter', '--log-group-name', logGroup,
+          '--filter-name', 'ape-errors', '--filter-pattern', '?ERROR ?error ?FATAL',
+          '--metric-transformations', `metricName=ApeErrors,metricNamespace=APE/Tenants,metricValue=1,dimensions={Tenant=${tenantId}}`]);
+      } catch { /* metric filter is best-effort beside the alarm */ }
+      aws(['cloudwatch', 'put-metric-alarm', '--alarm-name', `ape-${tenantId}-log-errors`,
+        '--namespace', 'APE/Tenants', '--metric-name', 'ApeErrors',
+        '--dimensions', `Name=Tenant,Value=${tenantId}`,
+        '--statistic', 'Sum', '--period', '300', '--evaluation-periods', '1',
+        '--threshold', '5', '--comparison-operator', 'GreaterThanOrEqualToThreshold',
+        '--alarm-actions', env('APE_ALARM_TOPIC_ARN'),
+        '--tags', `Key=ape:tenant,Value=${tenantId}`]);
+    }
+    completed.push('alarms');
+  } else {
+    record('cloudwatch', 'AlarmsNotConfigured', { note: 'Set APE_ALARM_TOPIC_ARN (SNS) to page on tenant failure.' });
+  }
+
   const result = { tenantId, live, roleName, roleArn, secretName, logGroup, taskArn, targetGroupArn, endpoint, endpointStatus: endpoint ? 'routed' : 'unrouted', completed, calls };
   if (outPath) fs.writeFileSync(outPath, JSON.stringify(result, null, 2));
   console.log(JSON.stringify(result, null, 2));

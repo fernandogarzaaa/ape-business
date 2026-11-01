@@ -99,6 +99,11 @@ function createStore(dbPath) {
       id INTEGER PRIMARY KEY AUTOINCREMENT, tenant_id TEXT NOT NULL,
       ts TEXT NOT NULL, token_count INTEGER NOT NULL, payload_hash TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS credentials (
+      tenant_id TEXT NOT NULL, system TEXT NOT NULL,
+      ciphertext TEXT NOT NULL, updated_at TEXT NOT NULL,
+      PRIMARY KEY (tenant_id, system)
+    );
   `;
   for (let attempt = 0; ; attempt++) {
     try {
@@ -273,6 +278,35 @@ function createStore(dbPath) {
         event: 'sealbox_tokenize', tenantId: r.tenant_id, timestamp: r.ts,
         tokenCount: r.token_count, payloadHash: r.payload_hash,
       }));
+    },
+    // ---- connector credentials (ciphertext only; see lib/vault.js) ----
+    putCredential(tenantId, system, ciphertext) {
+      db.prepare(`INSERT INTO credentials (tenant_id, system, ciphertext, updated_at)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(tenant_id, system) DO UPDATE SET ciphertext=excluded.ciphertext,
+          updated_at=excluded.updated_at`).run(tenantId, system, ciphertext, now());
+    },
+    getCredential(tenantId, system) {
+      const row = db.prepare(
+        'SELECT ciphertext FROM credentials WHERE tenant_id = ? AND system = ?')
+        .get(tenantId, system);
+      return row ? row.ciphertext : null;
+    },
+    // ---- usage + observability ----
+    countJobsSince(tenantId, sinceIso) {
+      const row = db.prepare(
+        'SELECT COUNT(*) AS c FROM jobs WHERE tenant_id = ? AND created_at >= ?')
+        .get(tenantId, sinceIso);
+      return row.c;
+    },
+    stats() {
+      const by = (sql) => Object.fromEntries(
+        db.prepare(sql).all().map((r) => [r.k, r.c]));
+      return {
+        tenantsByStatus: by('SELECT status AS k, COUNT(*) AS c FROM tenants GROUP BY status'),
+        jobsByChannel: by('SELECT channel AS k, COUNT(*) AS c FROM jobs GROUP BY channel'),
+        deploymentsByStatus: by('SELECT status AS k, COUNT(*) AS c FROM deployments GROUP BY status'),
+      };
     },
     close() { db.close(); },
   };

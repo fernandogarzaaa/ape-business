@@ -14,6 +14,8 @@ import { shaShort, emitTrace } from "../trace.js";
 import { familyOf, sha256hex } from "./outcomes.js";
 import { frameHydration } from "./similarity.js";
 import { initDrift, observeDrift, evaluateDrift, driftReceipt } from "./drift.js";
+import { harnessManifest } from "./harness-manifest.js";
+import { reflectLesson, appendLesson, loadLessons, frameLessons } from "./lessons.js";
 import { auditDestructive } from "../dispatch.js";
 
 // Tool-output framing (untrusted-data banner) lives in registry.js - single
@@ -92,9 +94,11 @@ export async function runAgent({ profile, objective, organism_id = "default", on
   // Hydrated memory enters framed as UNTRUSTED data (same trust class as tool
   // output): it may embed connector responses or planted instructions and must
   // never be received as principal instructions alongside the objective.
+  const lessonsFrame = process.env.APE_LESSONS === "0" ? null
+    : frameLessons(loadLessons(profile.name));
   const messages = initial?.messages?.length
     ? [...initial.messages]
-    : [...(initialContext ? [{ role: "user", content: frameHydration(initialContext) }] : []), { role: "user", content: String(objective) }];
+    : [...(initialContext ? [{ role: "user", content: frameHydration(initialContext) }] : []), { role: "user", content: String(objective) }, ...(lessonsFrame ? [{ role: "user", content: lessonsFrame }] : [])];
   const convKey = `run-${organism_id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   // Stable stash key for truncated tool results: the ledger run id when the loop
   // runs inside a worker (survives resume), else the per-invocation convKey.
@@ -542,8 +546,10 @@ const toolCalls = resp.toolCalls ?? [];
   // status payloads and the ledger keep their bounded shape. The receipt below
   // carries the evidence artifacts (verdict + digest), not the full text.
   for (const s of steps) delete s.fullResult;
-  return {
+  const harness = harnessManifest(profile);
+  const finalResult = {
     profile: profile.name,
+    harness_hash: harness.hash,
     model: usedModel,
     model_provider: usedProvider,
     model_resolution: usedResolution ?? resolvedModel?.resolution ?? "explicit",
@@ -564,6 +570,7 @@ const toolCalls = resp.toolCalls ?? [];
     destructive_used: destructiveUsed,
     receipt: {
       profile: profile.name,
+      harness_hash: harness.hash,
       model: usedProvider + "/" + usedModel,
       stop_reason: stopReason,
       unverified,
@@ -592,4 +599,10 @@ const toolCalls = resp.toolCalls ?? [];
     },
     steps,
   };
+  // Harnessing-level recursion: distill and persist a lesson for
+  // future runs of this profile. Best-effort; never fails the run.
+  try {
+    if (process.env.APE_LESSONS !== "0") appendLesson(reflectLesson(finalResult));
+  } catch { /* lessons are advisory */ }
+  return finalResult;
 }
