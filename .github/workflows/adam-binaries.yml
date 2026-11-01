@@ -1,0 +1,53 @@
+name: adam-binaries
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            asset: adam-mcp-win-x64.exe
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            asset: adam-mcp-linux-x64
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            asset: adam-mcp-darwin-arm64
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: vendors/adam
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - run: cargo build --release --target ${{ matrix.target }} -p adam-mcp
+      - name: Rename binary to platform asset name (so linux/macOS don't collide on download)
+        shell: bash
+        run: |
+          src="target/${{ matrix.target }}/release/adam-mcp${{ contains(matrix.os, 'windows') && '.exe' || '' }}"
+          cp "$src" "$GITHUB_WORKSPACE/${{ matrix.asset }}"
+          ls -la "$GITHUB_WORKSPACE/${{ matrix.asset }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: ${{ matrix.asset }}
+  release:
+    needs: [build]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist-adam
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist-adam/*

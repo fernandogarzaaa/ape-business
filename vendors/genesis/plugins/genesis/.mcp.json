@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "genesis": {
+      "command": "npx",
+      "args": ["-y", "genesis-assurance@latest", "mcp"],
+      "env": {}
+    }
+  }
+}

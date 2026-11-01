@@ -1,0 +1,10 @@
+{"input": {"metric": "task_success", "operator": ">=", "threshold": 0.9, "observed": 0.95}, "reference": true}
+{"input": {"metric": "task_success", "operator": ">=", "threshold": 0.9, "observed": 0.5}, "reference": false}
+{"input": {"metric": "cost", "operator": "<=", "threshold": 0.6, "observed": 0.4}, "reference": true}
+{"input": {"metric": "cost", "operator": "<=", "threshold": 0.6, "observed": 0.9}, "reference": false}
+{"input": {"metric": "latency", "operator": "<", "threshold": 100, "observed": 100}, "reference": false}
+{"input": {"metric": "latency", "operator": "<", "threshold": 100, "observed": 99.9}, "reference": true}
+{"input": {"metric": "x", "operator": "==", "threshold": 1, "observed": 1}, "reference": true}
+{"input": {"metric": "x", "operator": "!=", "threshold": 1, "observed": 2}, "reference": true}
+{"input": {"metric": "x", "operator": "!=", "threshold": 1, "observed": 1}, "reference": false}
+{"input": {"metric": "task_success", "operator": ">", "threshold": 0.9, "observed": 0.9}, "reference": false}

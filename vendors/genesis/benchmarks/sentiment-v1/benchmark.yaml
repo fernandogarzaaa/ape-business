@@ -1,0 +1,25 @@
+name: sentiment-v1
+benchmark:
+  version: 1.0.0
+  description: "Binary review-sentiment classification with accuracy, PRF, ROC-AUC, and calibration gates."
+dataset:
+  path: ./cases.jsonl
+  format: jsonl
+  id: sentiment-v1
+  version: "1.0.0"
+evaluator:
+  type: classification
+  positive: positive
+  scoreField: score
+metrics:
+  - accuracy
+  - precision
+  - recall
+  - f1
+  - roc_auc
+  - calibration_ece
+repetitions: 1
+paired: true
+thresholds:
+  accuracy: ">=0.75"
+  calibration_ece: "<=0.2"

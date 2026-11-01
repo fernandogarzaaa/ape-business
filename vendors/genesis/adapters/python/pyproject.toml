@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "genesis-adapter"
+version = "0.2.0"
+description = "Zero-dependency helpers implementing the Genesis adapter protocol (subjects and external evaluators)."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["genesis_adapter*"]

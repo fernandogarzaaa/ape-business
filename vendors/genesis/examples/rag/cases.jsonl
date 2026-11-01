@@ -1,0 +1,8 @@
+{"input": "how do I reset my password", "metadata": {"relevant_ids": ["doc-auth-1", "doc-auth-2"]}}
+{"input": "enable two factor authentication", "metadata": {"relevant_ids": ["doc-auth-2", "doc-auth-3"]}}
+{"input": "refund policy for annual plans", "metadata": {"relevant_ids": ["doc-billing-1"]}}
+{"input": "update my credit card", "metadata": {"relevant_ids": ["doc-billing-1", "doc-billing-2"]}}
+{"input": "export my data as csv", "metadata": {"relevant_ids": ["doc-data-1"]}}
+{"input": "delete my account permanently", "metadata": {"relevant_ids": ["doc-data-2", "doc-auth-1"]}}
+{"input": "invite a teammate to my workspace", "metadata": {"relevant_ids": ["doc-team-1"]}}
+{"input": "change workspace owner", "metadata": {"relevant_ids": ["doc-team-1", "doc-team-2"]}}

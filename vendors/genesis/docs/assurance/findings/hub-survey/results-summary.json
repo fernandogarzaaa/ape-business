@@ -1,0 +1,331 @@
+[
+  {
+    "env": "mayokun26/research-debugging",
+    "description": "Diagnose, repair, and rerun a research study whose headline conclusion is wrong.",
+    "status": "ok",
+    "py_files": 13,
+    "bytes": 42945,
+    "reward_files": [
+      "research_debugging/taskset.py",
+      "research_debugging/assets/hidden/verifier.py"
+    ],
+    "signature_classes": [
+      "missing_timeouts",
+      "substring_match_grading"
+    ]
+  },
+  {
+    "env": "dmnsh001/supabase-evals",
+    "description": "Supabase agent evals via OpenCode (pinned supabase/evals clone, MCP, EVAL.ts scoring)",
+    "status": "ok",
+    "py_files": 55,
+    "bytes": 742646,
+    "reward_files": [
+      "supabase_evals_lib/judge_config.py",
+      "supabase_evals_lib/supabase_opencode_env.py",
+      "supabase_evals_lib/utils.py",
+      "supabase_evals_lib/sidecar/patch-judge-provider.py",
+      "analysis/scripts/refresh_reason_tokens_canvas.py",
+      "analysis/scripts/task_matrix.py",
+      "analysis/supabase_eval/builders/checks.py"
+    ],
+    "signature_classes": [
+      "loose_answer_extraction",
+      "loose_numeric_tolerance",
+      "stdout_trusted",
+      "substring_match_grading"
+    ]
+  },
+  {
+    "env": "ericxu88/sregym-env",
+    "description": "SREGym \u2014 procedurally generated, deterministically verified on-call incident response (verifiers v1 taskset).",
+    "status": "ok",
+    "py_files": 68,
+    "bytes": 522167,
+    "reward_files": [
+      "sregym_env/servers/oncall.py",
+      "sregym/cli.py",
+      "sregym/harness/sweep.py",
+      "sregym/harness/agents/scripted.py",
+      "sregym/faults/base.py",
+      "sregym/generator/naming.py",
+      "sregym/generator/logs.py",
+      "sregym/generator/templates/checkout-service/checkout/main.py",
+      "sregym/tools/run_shell.py",
+      "sregym/verifier/verify.py"
+    ],
+    "signature_classes": [
+      "loose_answer_extraction",
+      "loose_numeric_tolerance",
+      "missing_timeouts",
+      "stdout_trusted",
+      "substring_match_grading"
+    ]
+  },
+  {
+    "env": "tommii/hanabi-cooperative-card-game",
+    "description": "Hanabi cooperative card game environment: strategic hint-giving, card deduction, and cooperative play evaluation for LLM reasoning",
+    "status": "ok",
+    "py_files": 1,
+    "bytes": 19870,
+    "reward_files": [
+      "hanabi_cooperative_card_game/__init__.py"
+    ],
+    "signature_classes": [
+      "substring_match_grading"
+    ]
+  },
+  {
+    "env": "polo/dominion-deck-building",
+    "description": "Deck-building strategy environment inspired by Dominion \u2014 evaluate kingdom card synergies, optimize buy phases, and compute VP projections",
+    "status": "ok",
+    "py_files": 1,
+    "bytes": 21671,
+    "reward_files": [
+      "dominion_deck_building/__init__.py"
+    ],
+    "signature_classes": [
+      "loose_answer_extraction",
+      "substring_match_grading"
+    ]
+  },
+  {
+    "env": "vibrantlabsai/itsm-bench",
+    "description": "ITSMBench (Enterprise-Worlds): a live ITSM tenant with 93 typed tools, a policy, and a simulated operator \u2014 53 multi-turn tasks graded on the final...",
+    "status": "ok",
+    "py_files": 56,
+    "bytes": 422386,
+    "reward_files": [
+      "enterprise_worlds/evaluator/evaluator_env.py",
+      "enterprise_worlds/evaluator/text_match_strategy.py",
+      "enterprise_worlds/evaluator/evaluator_nl.py",
+      "enterprise_worlds/domains/itsm/tools/_base.py",
+      "enterprise_worlds/domains/itsm/tools/knowledge.py",
+      "enterprise_worlds/domains/itsm/tools/locations.py",
+      "enterprise_worlds/domains/itsm/tools/incident_templates.py",
+      "itsm_bench/scoring.py"
+    ],
+    "signature_classes": [
+      "llm_judge",
+      "substring_match_grading"
+    ]
+  },
+  {
+    "env": "solar-sight/solar-eval",
+    "description": "Deterministically-graded RL environment for residential solar and battery quoting: five task families, a PVGIS-backed oracle, and no LLM judge.",
+    "status": "ok",
+    "py_files": 58,
+    "bytes": 707330,
+    "reward_files": [
+      "src/solar_eval/env.py",
+      "src/solar_eval/tasks/t4_tou_payback/grader.py",
+      "src/solar_eval/tasks/t3_incentive_eligibility/grader.py",
+      "src/solar_eval/tasks/t1_yield_estimate/grader.py",
+      "src/solar_eval/tasks/t5_proposal_audit/grader.py",
+      "src/solar_eval/tasks/t2_orientation_allocate/grader.py",
+      "baseline/families.py",
+      "scripts/regrade_t2_reweight.py",
+      "scripts/verify_t5_instances_independently.py"
+    ],
+    "signature_classes": [
+      "loose_numeric_tolerance",
+      "substring_match_grading"
+    ]
+  },
+  {
+    "env": "halfounce/numpy-scipy-exact",
+    "description": "Verifiable environment: the exact values behind classic numpy/scipy linear-algebra calls (charpoly coefficients, inverse entries, matrix-power trac...",
+    "status": "ok",
+    "py_files": 5,
+    "bytes": 19849,
+    "reward_files": [
+      "numpy_scipy_exact/core.py",
+      "numpy_scipy_exact/env.py"
+    ],
+    "signature_classes": [
+      "last_token_wins",
+      "loose_answer_extraction",
+      "loose_numeric_tolerance",
+      "substring_match_grading"
+    ]
+  },
+  {
+    "env": "halfounce/exact-determinant",
+    "description": "Verifiable environment: compute exact integer determinants. Reward recomputes det(A) by fraction-free integer elimination; guess-resistant by const...",
+    "status": "ok",
+    "py_files": 4,
+    "bytes": 7272,
+    "reward_files": [
+      "exact_determinant/core.py",
+      "exact_determinant/env.py"
+    ],
+    "signature_classes": [
+      "last_token_wins",
+      "loose_answer_extraction",
+      "substring_match_grading"
+    ]
+  },
+  {
+    "env": "boopathiraja/shell-ops",
+    "description": "Verifiable command-line tasks scored by an independent verifier the model never sees.",
+    "status": "ok",
+    "py_files": 1,
+    "bytes": 11886,
+    "reward_files": [
+      "shell_ops.py"
+    ],
+    "signature_classes": []
+  },
+  {
+    "env": "tohan/catan-resource-trading-simulator",
+    "description": "Catan-themed resource management and trading strategy environment for evaluating LLM reasoning about optimal trades, resource allocation, and settl...",
+    "status": "ok",
+    "py_files": 1,
+    "bytes": 20076,
+    "reward_files": [
+      "catan_resource_trading_simulator/__init__.py"
+    ],
+    "signature_classes": [
+      "loose_answer_extraction",
+      "substring_match_grading"
+    ]
+  },
+  {
+    "env": "prime/automationbench_v1_test",
+    "description": "Zapier AutomationBench business workflows with task-scoped, structured API discovery and execution.",
+    "status": "ok",
+    "py_files": 432,
+    "bytes": 14686907,
+    "reward_files": [
+      "automationbench/domains/sales/tasks.py",
+      "automationbench/domains/hr/tasks.py",
+      "automationbench/domains/finance/tasks.py",
+      "automationbench/domains/simple/tasks.py",
+      "automationbench/domains/marketing/tasks.py",
+      "automationbench/domains/operations/tasks.py",
+      "automationbench/tools/zapier/trello/actions.py",
+      "automationbench/tools/zapier/chatgpt/text_processing.py",
+      "automationbench/rubric/registry.py",
+      "automationbench/rubric/assertions/support_apps.py",
+      "automationbench/utils/bm25.py"
+    ],
+    "signature_classes": [
+      "llm_judge",
+      "substring_match_grading"
+    ]
+  },
+  {
+    "env": "realm/carcassonne-tile-laying-agent",
+    "description": "Evaluate LLM agents on Carcassonne board game tile placement strategy, terrain matching, and scoring optimization",
+    "status": "ok",
+    "py_files": 1,
+    "bytes": 13053,
+    "reward_files": [
+      "carcassonne_tile_laying_agent/__init__.py"
+    ],
+    "signature_classes": [
+      "loose_answer_extraction",
+      "substring_match_grading"
+    ]
+  },
+  {
+    "env": "ritwikraha/the-scientist",
+    "description": "A stateful RL environment for discovering hidden scientific laws through active experimentation.",
+    "status": "ok",
+    "py_files": 2,
+    "bytes": 16144,
+    "reward_files": [
+      "the_scientist/environment.py"
+    ],
+    "signature_classes": [
+      "loose_numeric_tolerance"
+    ]
+  },
+  {
+    "env": "iinmotion/algebra-steps",
+    "description": "Solve linear equations in one variable step by step; deterministic sympy rubric over the answer, the step chain, and the format.",
+    "status": "ok",
+    "py_files": 2,
+    "bytes": 11497,
+    "reward_files": [],
+    "signature_classes": [
+      "substring_match_grading"
+    ]
+  },
+  {
+    "env": "fran/blokus-geometric-placement",
+    "description": "Evaluates spatial reasoning through Blokus board game piece placement tasks including valid placement, counting, multi-piece coordination, and opti...",
+    "status": "ok",
+    "py_files": 1,
+    "bytes": 22014,
+    "reward_files": [
+      "blokus_geometric_placement/__init__.py"
+    ],
+    "signature_classes": [
+      "loose_answer_extraction",
+      "substring_match_grading"
+    ]
+  },
+  {
+    "env": "pronul/quoridor-path-blocking",
+    "description": "Quoridor path-blocking board game strategy environment for evaluating LLM spatial reasoning and game-theoretic planning",
+    "status": "ok",
+    "py_files": 1,
+    "bytes": 13583,
+    "reward_files": [
+      "quoridor_path_blocking/__init__.py"
+    ],
+    "signature_classes": [
+      "loose_answer_extraction",
+      "substring_match_grading"
+    ]
+  },
+  {
+    "env": "dylantirandaz/omp-coding",
+    "description": "Sealed coding tasks driven through OMP on Prime Verifiers v1.",
+    "status": "ok",
+    "py_files": 61,
+    "bytes": 491440,
+    "reward_files": [
+      "omp_coding/evaluation.py",
+      "omp_coding/__init__.py",
+      "omp_coding/verifier.py",
+      "omp_coding/_container_tool.py",
+      "omp_coding/_vendor/omp_rpc/client.py"
+    ],
+    "signature_classes": [
+      "loose_numeric_tolerance",
+      "missing_timeouts",
+      "stdout_trusted",
+      "substring_match_grading"
+    ]
+  },
+  {
+    "env": "punnettsquare9331/mcmcenv",
+    "description": "Prime Intellect RL environment for posterior-geometry MCMC sampler design",
+    "status": "ok",
+    "py_files": 13,
+    "bytes": 128722,
+    "reward_files": [
+      "mcmcbench_prime/verification.py",
+      "mcmcbench_prime/reward.py"
+    ],
+    "signature_classes": [
+      "substring_match_grading"
+    ]
+  },
+  {
+    "env": "audition/hive-insect-board-game",
+    "description": "Environment for evaluating LLM strategic reasoning through Hive insect board game mechanics, move validation, and tactical analysis",
+    "status": "ok",
+    "py_files": 1,
+    "bytes": 20432,
+    "reward_files": [
+      "hive_insect_board_game/__init__.py"
+    ],
+    "signature_classes": [
+      "loose_answer_extraction",
+      "substring_match_grading"
+    ]
+  }
+]

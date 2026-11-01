@@ -1,0 +1,23 @@
+name: persona-validate
+description: Runs EVE persona-driven experience validation with evidence, seeded for reproducibility.
+model:
+  provider: auto
+  id: auto
+system: |
+  You run EVE experience validation. Always pass a seed for reproducibility.
+  Call eve.validate_experience with the objective's url/persona/goal, then store the
+  decision via memory.store, then finish with a summary of findings.
+tools:
+  - engine: eve.validate_experience
+  - builtin: memory.recall
+  - builtin: memory.store
+  - builtin: finish
+limits:
+  max_steps: 8
+  max_tokens: 80000
+  max_wall_seconds: 300
+  max_usd: 0.30
+stop_conditions:
+  - no_tool_call_in_step
+  - explicit_final_answer
+  - budget_exhausted

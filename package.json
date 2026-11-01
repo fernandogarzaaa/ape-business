@@ -1,0 +1,54 @@
+{
+  "name": "ape-mcp",
+  "version": "1.0.0",
+  "description": "APE \u2014 hybrid-native MCP server with an embedded, user-configurable agent: multi-engine orchestration (Genesis + EVE + ADAM + Skein), declarative connectors, task-graph execution, audit ledger, memory. No 5-repo clone required.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "bin": {
+    "ape-mcp": "./bin/ape-mcp.js"
+  },
+  "main": "./src/index.js",
+  "files": [
+    "bin",
+    "src",
+    "console",
+    "vendors",
+    "skills",
+    "schemas",
+    "mods",
+    "profiles",
+    "connectors",
+    "docs",
+    "ape.config.example.yaml",
+    "README.md",
+    "NOTICE.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "vendor": "node scripts/vendor.mjs",
+    "build": "node scripts/build.mjs",
+    "postinstall": "node scripts/postinstall.mjs",
+    "doctor": "node bin/ape-mcp.js doctor",
+    "smoke": "node scripts/smoke.mjs",
+    "test": "node --test tests/ape.test.js tests/agent.test.js tests/context.test.js tests/connectors.test.js tests/extension.test.js tests/hostdetect.test.js tests/console.test.js tests/a2a.test.js tests/analyze.test.js tests/router.test.js tests/outcomes.test.js tests/drift.test.js tests/admission.test.js tests/supply.test.js tests/tasks.test.js tests/profiles.test.js tests/delegate.test.js tests/hierarchy.test.js",
+    "console": "node bin/ape-mcp.js serve",
+    "test:sigil": "node --test tests/sigil-gate.test.js tests/sigil-gate-invoke.test.js tests/sigil-gate-hardening.test.js tests/meta-provider.test.js",
+    "test:provisioning": "node provisioning/sms/test-sms.js && node provisioning/email/test-email.js && node provisioning/stripe/test-stripe.js && node provisioning/aws/dry-run.js && node provisioning/e2e-test.js",
+    "demo:sigil": "node demo/sigil-gate-demo.mjs"
+  },
+  "dependencies": {
+    "zod": "^3.23.8",
+    "yaml": "^2.4.0",
+    "@modelcontextprotocol/server": "^2.0.0"
+  },
+  "mcp": {
+    "protocolVersion": "2026-07-28",
+    "server": {
+      "name": "ape-mcp",
+      "version": "1.0.0"
+    }
+  }
+}

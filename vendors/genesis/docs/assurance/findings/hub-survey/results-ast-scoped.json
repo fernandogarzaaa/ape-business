@@ -1,0 +1,641 @@
+[
+  {
+    "modules": 13,
+    "functions_total": 43,
+    "reward_roots": [
+      {
+        "module": "research_debugging.taskset",
+        "function": "ResearchDebuggingTask.solved",
+        "line": 106,
+        "why": "@vf.reward at research_debugging.taskset:105"
+      }
+    ],
+    "reachable_count": 3,
+    "scope_reduction": 0.9302325581395349,
+    "unresolved": [],
+    "subprocess_escapes": [
+      {
+        "module": "research_debugging.taskset",
+        "function": "_grade",
+        "line": 64,
+        "call": "subprocess.run"
+      }
+    ],
+    "signature_classes": [
+      "containment_decides_reward_UNTYPED"
+    ],
+    "env": "mayokun26/research-debugging",
+    "status": "ok",
+    "signature_hit_counts": {
+      "containment_decides_reward_UNTYPED": 1
+    }
+  },
+  {
+    "modules": 54,
+    "functions_total": 714,
+    "reward_roots": [
+      {
+        "module": "supabase_evals",
+        "function": "load_environment.rf",
+        "line": 396,
+        "why": "Rubric(funcs=[...]) at supabase_evals:410"
+      }
+    ],
+    "reachable_count": 1,
+    "scope_reduction": 0.9985994397759104,
+    "unresolved": [],
+    "subprocess_escapes": [],
+    "signature_classes": [],
+    "env": "dmnsh001/supabase-evals",
+    "status": "ok",
+    "signature_hit_counts": {}
+  },
+  {
+    "modules": 68,
+    "functions_total": 429,
+    "reward_roots": [
+      {
+        "module": "sregym_env.taskset",
+        "function": "SREGymTask.incident_resolution",
+        "line": 120,
+        "why": "@vf.reward at sregym_env.taskset:119"
+      }
+    ],
+    "reachable_count": 2,
+    "scope_reduction": 0.9953379953379954,
+    "unresolved": [],
+    "subprocess_escapes": [],
+    "signature_classes": [],
+    "env": "ericxu88/sregym-env",
+    "status": "ok",
+    "signature_hit_counts": {}
+  },
+  {
+    "modules": 1,
+    "functions_total": 14,
+    "reward_roots": [
+      {
+        "module": "hanabi_cooperative_card_game",
+        "function": "endgame_score",
+        "line": 457,
+        "why": "Rubric(funcs=[...]) at hanabi_cooperative_card_game:558"
+      },
+      {
+        "module": "hanabi_cooperative_card_game",
+        "function": "hint_interpretation_score",
+        "line": 327,
+        "why": "Rubric(funcs=[...]) at hanabi_cooperative_card_game:558"
+      },
+      {
+        "module": "hanabi_cooperative_card_game",
+        "function": "play_decision_score",
+        "line": 367,
+        "why": "Rubric(funcs=[...]) at hanabi_cooperative_card_game:558"
+      },
+      {
+        "module": "hanabi_cooperative_card_game",
+        "function": "reasoning_quality_score",
+        "line": 500,
+        "why": "Rubric(funcs=[...]) at hanabi_cooperative_card_game:558"
+      },
+      {
+        "module": "hanabi_cooperative_card_game",
+        "function": "strategy_score",
+        "line": 413,
+        "why": "Rubric(funcs=[...]) at hanabi_cooperative_card_game:558"
+      }
+    ],
+    "reachable_count": 5,
+    "scope_reduction": 0.6428571428571428,
+    "unresolved": [],
+    "subprocess_escapes": [],
+    "signature_classes": [],
+    "env": "tommii/hanabi-cooperative-card-game",
+    "status": "ok",
+    "signature_hit_counts": {}
+  },
+  {
+    "modules": 1,
+    "functions_total": 6,
+    "reward_roots": [
+      {
+        "module": "dominion_deck_building",
+        "function": "_check_edge_cases",
+        "line": 365,
+        "why": "Rubric(funcs=[...]) at dominion_deck_building:401"
+      },
+      {
+        "module": "dominion_deck_building",
+        "function": "_check_optimal_buy",
+        "line": 241,
+        "why": "Rubric(funcs=[...]) at dominion_deck_building:401"
+      },
+      {
+        "module": "dominion_deck_building",
+        "function": "_check_reasoning_quality",
+        "line": 317,
+        "why": "Rubric(funcs=[...]) at dominion_deck_building:401"
+      },
+      {
+        "module": "dominion_deck_building",
+        "function": "_check_synergy_reasoning",
+        "line": 283,
+        "why": "Rubric(funcs=[...]) at dominion_deck_building:401"
+      }
+    ],
+    "reachable_count": 4,
+    "scope_reduction": 0.33333333333333337,
+    "unresolved": [],
+    "subprocess_escapes": [],
+    "signature_classes": [
+      "regex_answer_extraction"
+    ],
+    "env": "polo/dominion-deck-building",
+    "status": "ok",
+    "signature_hit_counts": {
+      "regex_answer_extraction": 1
+    }
+  },
+  {
+    "modules": 56,
+    "functions_total": 311,
+    "reward_roots": [
+      {
+        "module": "itsm_bench.scoring",
+        "function": "build_rubric.itsm_bench_reward",
+        "line": 134,
+        "why": "Rubric(funcs=[...]) at itsm_bench.scoring:153"
+      }
+    ],
+    "reachable_count": 7,
+    "scope_reduction": 0.977491961414791,
+    "unresolved": [],
+    "subprocess_escapes": [],
+    "signature_classes": [],
+    "env": "vibrantlabsai/itsm-bench",
+    "status": "ok",
+    "signature_hit_counts": {}
+  },
+  {
+    "modules": 58,
+    "functions_total": 422,
+    "reward_roots": [],
+    "reachable_count": 0,
+    "scope_reduction": 1.0,
+    "unresolved": [
+      {
+        "kind": "rubric_func",
+        "module": "src.solar_eval.env",
+        "line": 664,
+        "name": "funcs"
+      }
+    ],
+    "subprocess_escapes": [],
+    "signature_classes": [],
+    "env": "solar-sight/solar-eval",
+    "status": "ok",
+    "signature_hit_counts": {}
+  },
+  {
+    "modules": 5,
+    "functions_total": 30,
+    "reward_roots": [
+      {
+        "module": "numpy_scipy_exact.env",
+        "function": "exact_numeric_reward",
+        "line": 36,
+        "why": "Rubric(funcs=[...]) at numpy_scipy_exact.env:79"
+      }
+    ],
+    "reachable_count": 18,
+    "scope_reduction": 0.4,
+    "unresolved": [],
+    "subprocess_escapes": [],
+    "signature_classes": [
+      "regex_answer_extraction"
+    ],
+    "env": "halfounce/numpy-scipy-exact",
+    "status": "ok",
+    "signature_hit_counts": {
+      "regex_answer_extraction": 3
+    }
+  },
+  {
+    "modules": 4,
+    "functions_total": 14,
+    "reward_roots": [
+      {
+        "module": "exact_determinant.env",
+        "function": "exact_determinant_reward",
+        "line": 23,
+        "why": "Rubric(funcs=[...]) at exact_determinant.env:63"
+      }
+    ],
+    "reachable_count": 6,
+    "scope_reduction": 0.5714285714285714,
+    "unresolved": [],
+    "subprocess_escapes": [],
+    "signature_classes": [
+      "regex_answer_extraction"
+    ],
+    "env": "halfounce/exact-determinant",
+    "status": "ok",
+    "signature_hit_counts": {
+      "regex_answer_extraction": 2
+    }
+  },
+  {
+    "modules": 1,
+    "functions_total": 7,
+    "reward_roots": [
+      {
+        "module": "shell_ops",
+        "function": "verifier_reward",
+        "line": 302,
+        "why": "Rubric(funcs=[...]) at shell_ops:319"
+      }
+    ],
+    "reachable_count": 1,
+    "scope_reduction": 0.8571428571428572,
+    "unresolved": [],
+    "subprocess_escapes": [],
+    "signature_classes": [],
+    "env": "boopathiraja/shell-ops",
+    "status": "ok",
+    "signature_hit_counts": {}
+  },
+  {
+    "modules": 1,
+    "functions_total": 8,
+    "reward_roots": [
+      {
+        "module": "catan_resource_trading_simulator",
+        "function": "build_optimization_reward",
+        "line": 422,
+        "why": "Rubric(funcs=[...]) at catan_resource_trading_simulator:577"
+      },
+      {
+        "module": "catan_resource_trading_simulator",
+        "function": "format_quality_reward",
+        "line": 462,
+        "why": "Rubric(funcs=[...]) at catan_resource_trading_simulator:577"
+      },
+      {
+        "module": "catan_resource_trading_simulator",
+        "function": "probability_reasoning_reward",
+        "line": 342,
+        "why": "Rubric(funcs=[...]) at catan_resource_trading_simulator:577"
+      },
+      {
+        "module": "catan_resource_trading_simulator",
+        "function": "reasoning_quality_reward",
+        "line": 299,
+        "why": "Rubric(funcs=[...]) at catan_resource_trading_simulator:577"
+      },
+      {
+        "module": "catan_resource_trading_simulator",
+        "function": "strategic_planning_reward",
+        "line": 383,
+        "why": "Rubric(funcs=[...]) at catan_resource_trading_simulator:577"
+      },
+      {
+        "module": "catan_resource_trading_simulator",
+        "function": "trade_evaluation_reward",
+        "line": 271,
+        "why": "Rubric(funcs=[...]) at catan_resource_trading_simulator:577"
+      }
+    ],
+    "reachable_count": 6,
+    "scope_reduction": 0.25,
+    "unresolved": [],
+    "subprocess_escapes": [],
+    "signature_classes": [
+      "regex_answer_extraction"
+    ],
+    "env": "tohan/catan-resource-trading-simulator",
+    "status": "ok",
+    "signature_hit_counts": {
+      "regex_answer_extraction": 17
+    }
+  },
+  {
+    "modules": 432,
+    "functions_total": 3678,
+    "reward_roots": [
+      {
+        "module": "automationbench_env.taskset",
+        "function": "AutomationBenchTask.partial_credit",
+        "line": 66,
+        "why": "@vf.reward at automationbench_env.taskset:65"
+      }
+    ],
+    "reachable_count": 1,
+    "scope_reduction": 0.9997281131049484,
+    "unresolved": [],
+    "subprocess_escapes": [],
+    "signature_classes": [],
+    "env": "prime/automationbench_v1_test",
+    "status": "ok",
+    "signature_hit_counts": {}
+  },
+  {
+    "modules": 1,
+    "functions_total": 11,
+    "reward_roots": [
+      {
+        "module": "carcassonne_tile_laying_agent",
+        "function": "format_compliance_reward",
+        "line": 256,
+        "why": "Rubric(funcs=[...]) at carcassonne_tile_laying_agent:365"
+      },
+      {
+        "module": "carcassonne_tile_laying_agent",
+        "function": "placement_validity_reward",
+        "line": 152,
+        "why": "Rubric(funcs=[...]) at carcassonne_tile_laying_agent:365"
+      },
+      {
+        "module": "carcassonne_tile_laying_agent",
+        "function": "reasoning_quality_reward",
+        "line": 224,
+        "why": "Rubric(funcs=[...]) at carcassonne_tile_laying_agent:365"
+      },
+      {
+        "module": "carcassonne_tile_laying_agent",
+        "function": "scoring_quality_reward",
+        "line": 190,
+        "why": "Rubric(funcs=[...]) at carcassonne_tile_laying_agent:365"
+      }
+    ],
+    "reachable_count": 4,
+    "scope_reduction": 0.6363636363636364,
+    "unresolved": [],
+    "subprocess_escapes": [],
+    "signature_classes": [
+      "regex_answer_extraction"
+    ],
+    "env": "realm/carcassonne-tile-laying-agent",
+    "status": "ok",
+    "signature_hit_counts": {
+      "regex_answer_extraction": 6
+    }
+  },
+  {
+    "modules": 2,
+    "functions_total": 26,
+    "reward_roots": [
+      {
+        "module": "the_scientist.environment",
+        "function": "hidden_probe_score",
+        "line": 241,
+        "why": "Rubric(funcs=[...]) at the_scientist.environment:301"
+      },
+      {
+        "module": "the_scientist.environment",
+        "function": "structure_score",
+        "line": 260,
+        "why": "Rubric(funcs=[...]) at the_scientist.environment:301"
+      }
+    ],
+    "reachable_count": 13,
+    "scope_reduction": 0.5,
+    "unresolved": [],
+    "subprocess_escapes": [],
+    "signature_classes": [
+      "loose_numeric_tolerance"
+    ],
+    "env": "ritwikraha/the-scientist",
+    "status": "ok",
+    "signature_hit_counts": {
+      "loose_numeric_tolerance": 1
+    }
+  },
+  {
+    "modules": 2,
+    "functions_total": 20,
+    "reward_roots": [
+      {
+        "module": "algebra_steps.taskset",
+        "function": "AlgebraStepsTask.answer_correct",
+        "line": 257,
+        "why": "@vf.reward at algebra_steps.taskset:256"
+      },
+      {
+        "module": "algebra_steps.taskset",
+        "function": "AlgebraStepsTask.format_ok",
+        "line": 287,
+        "why": "@vf.reward at algebra_steps.taskset:286"
+      },
+      {
+        "module": "algebra_steps.taskset",
+        "function": "AlgebraStepsTask.steps_valid",
+        "line": 262,
+        "why": "@vf.reward at algebra_steps.taskset:261"
+      }
+    ],
+    "reachable_count": 12,
+    "scope_reduction": 0.4,
+    "unresolved": [],
+    "subprocess_escapes": [],
+    "signature_classes": [
+      "containment_decides_reward_UNTYPED"
+    ],
+    "env": "iinmotion/algebra-steps",
+    "status": "ok",
+    "signature_hit_counts": {
+      "containment_decides_reward_UNTYPED": 1
+    }
+  },
+  {
+    "modules": 1,
+    "functions_total": 19,
+    "reward_roots": [
+      {
+        "module": "blokus_geometric_placement",
+        "function": "check_count_accuracy",
+        "line": 262,
+        "why": "Rubric(funcs=[...]) at blokus_geometric_placement:597"
+      },
+      {
+        "module": "blokus_geometric_placement",
+        "function": "check_coverage_score",
+        "line": 198,
+        "why": "Rubric(funcs=[...]) at blokus_geometric_placement:597"
+      },
+      {
+        "module": "blokus_geometric_placement",
+        "function": "check_multi_placement",
+        "line": 297,
+        "why": "Rubric(funcs=[...]) at blokus_geometric_placement:597"
+      },
+      {
+        "module": "blokus_geometric_placement",
+        "function": "check_placement_validity",
+        "line": 148,
+        "why": "Rubric(funcs=[...]) at blokus_geometric_placement:597"
+      },
+      {
+        "module": "blokus_geometric_placement",
+        "function": "check_reasoning_quality",
+        "line": 225,
+        "why": "Rubric(funcs=[...]) at blokus_geometric_placement:597"
+      }
+    ],
+    "reachable_count": 10,
+    "scope_reduction": 0.4736842105263158,
+    "unresolved": [],
+    "subprocess_escapes": [],
+    "signature_classes": [
+      "regex_answer_extraction"
+    ],
+    "env": "fran/blokus-geometric-placement",
+    "status": "ok",
+    "signature_hit_counts": {
+      "regex_answer_extraction": 5
+    }
+  },
+  {
+    "modules": 1,
+    "functions_total": 11,
+    "reward_roots": [
+      {
+        "module": "quoridor_path_blocking",
+        "function": "check_move_format",
+        "line": 233,
+        "why": "Rubric(funcs=[...]) at quoridor_path_blocking:413"
+      },
+      {
+        "module": "quoridor_path_blocking",
+        "function": "check_overall_quality",
+        "line": 355,
+        "why": "Rubric(funcs=[...]) at quoridor_path_blocking:413"
+      },
+      {
+        "module": "quoridor_path_blocking",
+        "function": "check_path_calculation",
+        "line": 295,
+        "why": "Rubric(funcs=[...]) at quoridor_path_blocking:413"
+      },
+      {
+        "module": "quoridor_path_blocking",
+        "function": "check_strategic_reasoning",
+        "line": 260,
+        "why": "Rubric(funcs=[...]) at quoridor_path_blocking:413"
+      },
+      {
+        "module": "quoridor_path_blocking",
+        "function": "check_wall_reasoning",
+        "line": 325,
+        "why": "Rubric(funcs=[...]) at quoridor_path_blocking:413"
+      }
+    ],
+    "reachable_count": 5,
+    "scope_reduction": 0.5454545454545454,
+    "unresolved": [],
+    "subprocess_escapes": [],
+    "signature_classes": [
+      "regex_answer_extraction"
+    ],
+    "env": "pronul/quoridor-path-blocking",
+    "status": "ok",
+    "signature_hit_counts": {
+      "regex_answer_extraction": 7
+    }
+  },
+  {
+    "modules": 45,
+    "functions_total": 466,
+    "reward_roots": [
+      {
+        "module": "omp_coding",
+        "function": "OmpEnv.finalize",
+        "line": 1176,
+        "why": "record_reward() at omp_coding:1203"
+      }
+    ],
+    "reachable_count": 20,
+    "scope_reduction": 0.9570815450643777,
+    "unresolved": [],
+    "subprocess_escapes": [],
+    "signature_classes": [
+      "loose_numeric_tolerance"
+    ],
+    "env": "dylantirandaz/omp-coding",
+    "status": "ok",
+    "signature_hit_counts": {
+      "loose_numeric_tolerance": 1
+    }
+  },
+  {
+    "modules": 13,
+    "functions_total": 103,
+    "reward_roots": [
+      {
+        "module": "mcmcbench_prime.env",
+        "function": "_record_final_trace",
+        "line": 137,
+        "why": "record_reward() at mcmcbench_prime.env:155"
+      },
+      {
+        "module": "mcmcbench_prime.taskset",
+        "function": "MCMCBenchTask.finalize",
+        "line": 95,
+        "why": "record_reward() at mcmcbench_prime.taskset:155"
+      }
+    ],
+    "reachable_count": 49,
+    "scope_reduction": 0.5242718446601942,
+    "unresolved": [],
+    "subprocess_escapes": [],
+    "signature_classes": [
+      "regex_answer_extraction"
+    ],
+    "env": "punnettsquare9331/mcmcenv",
+    "status": "ok",
+    "signature_hit_counts": {
+      "regex_answer_extraction": 1
+    }
+  },
+  {
+    "modules": 1,
+    "functions_total": 6,
+    "reward_roots": [
+      {
+        "module": "hive_insect_board_game",
+        "function": "analysis_depth",
+        "line": 325,
+        "why": "Rubric(funcs=[...]) at hive_insect_board_game:371"
+      },
+      {
+        "module": "hive_insect_board_game",
+        "function": "move_accuracy",
+        "line": 217,
+        "why": "Rubric(funcs=[...]) at hive_insect_board_game:371"
+      },
+      {
+        "module": "hive_insect_board_game",
+        "function": "rule_knowledge",
+        "line": 286,
+        "why": "Rubric(funcs=[...]) at hive_insect_board_game:371"
+      },
+      {
+        "module": "hive_insect_board_game",
+        "function": "strategy_score",
+        "line": 247,
+        "why": "Rubric(funcs=[...]) at hive_insect_board_game:371"
+      }
+    ],
+    "reachable_count": 4,
+    "scope_reduction": 0.33333333333333337,
+    "unresolved": [],
+    "subprocess_escapes": [],
+    "signature_classes": [
+      "regex_answer_extraction"
+    ],
+    "env": "audition/hive-insect-board-game",
+    "status": "ok",
+    "signature_hit_counts": {
+      "regex_answer_extraction": 1
+    }
+  }
+]

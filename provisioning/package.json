@@ -1,0 +1,1 @@
+{"name":"ape-business-provisioning","private":true,"type":"commonjs","description":"Provisioning backend (CommonJS). The repo root is the ESM APE demo (\"type\": \"module\"); this boundary keeps provisioning's require() files CommonJS without renaming any of them."}

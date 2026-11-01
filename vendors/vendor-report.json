@@ -1,0 +1,32 @@
+{
+  "jobs": [
+    {
+      "dest": "vendors/genesis",
+      "status": "ok",
+      "copied": [
+        "src",
+        "bin",
+        "adapters",
+        "benchmarks",
+        "templates",
+        "fixtures",
+        "examples",
+        "tests",
+        "docs",
+        "plugins",
+        "tools",
+        "package.json",
+        "package-lock.json",
+        "tsconfig.json",
+        "tsconfig.build.json",
+        "biome.json",
+        "vitest.config.ts",
+        "README.md",
+        "LICENSE",
+        ".claude-plugin"
+      ],
+      "sha": "d85012a21aa9a6b0ce2637cddb473165fc741efe"
+    }
+  ],
+  "at": "2026-09-17T05:34:59.618Z"
+}

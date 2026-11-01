@@ -1,0 +1,28 @@
+# ape.config.example.yaml — copy to ape.config.yaml and edit. Local-only auth v1.
+console: { host: "127.0.0.1", port: 0, openBrowser: true }
+dataDir: .ape
+mods: ["./mods/policy-gates"]
+policy: { destructiveConfirm: true }
+engines:
+  eve: { persona_default: curious-explorer, seed_default: 7 }
+  genesis: { suite_default: code }
+  skein: { agent_default: ape-mcp }
+  adam: { organism_default: default }
+auth: { mode: local-env }  # v1: env/API keys only; OAuth resource-server later
+# context: global defaults for agent-loop context hygiene (all optional).
+# Precedence: built-in defaults < this file < profile policy.context < per-tool.
+#  max_result_tokens: tool results over this (~tokens) are truncated to a preview.
+#  preview_tokens:    preview budget kept in context (head-tail split by default).
+#  mode:              head | tail | head-tail (default head-tail).
+#  retrieve:          expose the context.retrieve tool so the agent can page
+#                     through truncated results (default true).
+#  max_stash_chars:   cap on the full text kept per truncated result (runs.db).
+#  per_tool:          per-tool overrides, e.g. { "engine.skein.orchestrate":
+#                     { max_result_tokens: 500 } } for noisy tools.
+context:
+  max_result_tokens: 1500
+  preview_tokens: 750
+  mode: head-tail
+  retrieve: true
+  max_stash_chars: 100000
+  per_tool: {}

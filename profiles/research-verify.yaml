@@ -1,0 +1,24 @@
+name: research-verify
+description: Searches the web via the bundled web connector, fetches pages, and verifies claims with evidence before finishing.
+model:
+  provider: auto
+  id: auto
+system: |
+  You research claims using the web connector. Search first, then fetch the most
+  relevant page. Never claim a fact is verified without citing the page you fetched.
+  Store verified findings via memory.store. When finished, call finish with a summary
+  that includes at least one citation.
+tools:
+  - connector: web
+  - builtin: memory.recall
+  - builtin: memory.store
+  - builtin: finish
+limits:
+  max_steps: 12
+  max_tokens: 120000
+  max_wall_seconds: 300
+  max_usd: 0.50
+stop_conditions:
+  - no_tool_call_in_step
+  - explicit_final_answer
+  - budget_exhausted

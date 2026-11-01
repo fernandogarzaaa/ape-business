@@ -1,0 +1,6 @@
+{"input": "I love this product, it works great", "reference": "positive"}
+{"input": "Absolutely terrible, broke on day one", "reference": "negative"}
+{"input": "Great value and fast shipping", "reference": "positive"}
+{"input": "Poor design and awful support", "reference": "negative"}
+{"input": "Fantastic experience overall", "reference": "positive"}
+{"input": "Disappointing and bad", "reference": "negative"}

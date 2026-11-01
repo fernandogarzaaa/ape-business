@@ -1,0 +1,23 @@
+// opencode.json — register the Genesis MCP server (merge the "mcp" block
+// into your config). Full schema: https://opencode.ai/config.json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "genesis": {
+      "type": "local",
+      "command": ["npx", "-y", "genesis-assurance@latest", "mcp"],
+      "enabled": true
+    }
+  }
+}
+
+// Local checkout alternative (before first publish, or to pin a revision):
+// {
+//   "mcp": {
+//     "genesis": {
+//       "type": "local",
+//       "command": ["node", "/absolute/path/to/genesis/dist/cli/run.js", "mcp"],
+//       "enabled": true
+//     }
+//   }
+// }

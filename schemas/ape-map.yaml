@@ -1,0 +1,43 @@
+# APE tool/resource/prompt map â€” every engine reachable, nothing headless
+# MCP 2026-07-28: stateless protocol, state in handles. All tools idempotent.
+
+tools:
+  - { name: ape_status, from: [adam(genome/history), genesis(suites), eve(personas)], args: { organism_id: string }, out: { version, genome, engines, mods } }
+  - { name: ape_remember, from: [adam(memory_store, real stdio)], args: { kind, content, origin, confidence, organism_id }, out: { _adam, result } }
+  - { name: ape_recall, from: [adam(memory_query, real stdio)], args: { query, kind, top_k, organism_id }, out: { _adam, result } }
+  - { name: ape_beliefs, from: [adam(beliefs, real stdio)], args: { statement, origin, organism_id }, out: { _adam, result } }
+  - { name: ape_genome, from: [adam(genome, real stdio)], args: { organism_id }, out: { _adam, result } }
+  - { name: ape_validate_experience, from: [eve(session,personas,reporting,panel)], args: { url, persona, goal, seed, cognitive }, out: { task_id, report_uri }, long_running: tasks }
+  - { name: ape_mcp_eval, from: [eve(mcpEval oracles via eve mcp-eval)], args: { target }, out: { schema, conformance, fuzz } }
+  - { name: ape_audit_claim, from: [genesis(audit,evaluate,trust,gate,attest)], args: { spec_or_verifier, suite }, out: { verdict, rates, findings }, ledger: true }
+  - { name: ape_compare, from: [genesis(compare,regression)], args: { run_a, run_b }, out: { delta } }
+  - { name: ape_orchestrate, from: [skein(graph,node-add,claim,worktree,verify,supervisor,sync)], args: { op, node, agent_id, title, goal, context, constraints, completion, depends_on }, out: { graph, evidence } }
+  - { name: ape_evolve, from: [adam(evolve,propose,accept,reject)+eve(measure)], args: { signals_or_proposal, organism_id }, out: { proposal, fitness }, destructive_confirm: true }
+  - { name: ape_report, from: [eve(reporting), genesis(report-html)], args: { ref }, out: { html_uri, markdown } }
+  - { name: ape_task_start, from: [core(tasks)], args: { tool, arguments }, out: { task_id }, long_running: true }
+  - { name: ape_task_get, from: [core(tasks)], args: { task_id }, out: { status, result } }
+  - { name: ape_agent_profiles, from: [ape(agent profiles)], args: {}, out: { profiles: [] } }
+  - { name: ape_agent_run, from: [ape(agent runtime)], args: { profile, objective, organism_id }, out: { run_id, status }, long_running: true }
+  - { name: ape_agent_status, from: [ape(agent runtime)], args: { run_id }, out: { status, steps, cost, outcome } }
+  - { name: ape_agent_cancel, from: [ape(agent runtime)], args: { run_id }, out: { status, stop_reason } }
+  - { name: ape_agent_resume, from: [ape(agent runtime)], args: { run_id }, out: { status, resumed_from_step, resumes } }
+  - { name: ape_agent_analyze, from: [ape(harness evolution)], args: { profile, window, record }, out: { findings, suggestions } }
+  - { name: ape_agent_family, from: [ape(outcome ledger)], args: { family, objective }, out: { runs, completed, total_cost_usd, avg_cost_usd, variants } }
+  - { name: ape_agent_deprecate, from: [ape(outcome ledger)], args: { family, outcome_hash, reason }, out: { family, outcome_hash, reason } }
+  - { name: ape_connector_list, from: [ape(connectors)], args: {}, out: { connectors: [] } }
+  - { name: ape_connector_call, from: [ape(connectors)], args: { connector, operation, input, confirm }, out: { ok, status, body }, destructive_confirm: true }
+resources:
+  - { uri: "genome://current", from: adam-kernel }
+  - { uri: "memory://{kind}/{id}", from: adam-memory/eventlog }
+  - { uri: "ledger://genesis", from: genesis-ledger }
+  - { uri: "audit://adam", from: adam-governance }
+  - { uri: "graph://skein/current", from: skein-graph }
+  - { uri: "report://eve/{id}", from: eve-reporting }
+prompts:
+  - { name: /APE, from: adam-skills/APE + eve-skills, loop: recall-before/verify-while/store-after }
+  - { name: /validate-ux, from: eve-skill }
+  - { name: /audit-verifier, from: genesis }
+trace:
+  bus: .ape/trace.ndjson
+  fields: [ts, traceId, tool, argsHash, handles, durationMs, resultSummary, error, modApplied]
+  api: [/api/trace?since=, /api/tools, /api/graph, /api/ledger, /api/mods, POST /api/call]

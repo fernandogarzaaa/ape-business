@@ -1,0 +1,19 @@
+name: arithmetic-v1
+benchmark:
+  version: 1.0.0
+  description: "Numeric doubling over 8 fixed cases: exact-match scoring of a deterministic transform."
+dataset:
+  path: ./cases.jsonl
+  format: jsonl
+  id: arithmetic-v1
+  version: "1.0.0"
+evaluator:
+  type: exact
+metrics:
+  - task_success
+  - mean_latency_ms
+  - p95_latency_ms
+repetitions: 2
+paired: true
+thresholds:
+  task_success: ">=0.875"

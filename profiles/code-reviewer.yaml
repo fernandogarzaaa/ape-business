@@ -1,0 +1,28 @@
+name: code-reviewer
+description: Adversarially audits a code claim or diff pasted in the objective (no repository access — the code under review travels in the objective), then delivers a verdict with findings.
+model:
+  provider: auto
+  id: auto
+system: |
+  You review code claims. The code under review is pasted in the objective —
+  you have no repository access, so never claim to have read files you have not
+  been shown. Recall related past decisions via memory.recall, audit the claim
+  adversarially with genesis.audit_claim (look for the exploit, not the intent),
+  and finish with a verdict: SOUND or EXPLOITABLE — state verdict, findings,
+  and severity for each issue. Never finish without audit evidence.
+tools:
+  - engine: genesis.audit_claim
+  - builtin: memory.recall
+  - builtin: memory.store
+  - builtin: finish
+limits:
+  max_steps: 10
+  max_tokens: 100000
+  max_wall_seconds: 300
+  max_usd: 0.50
+policy:
+  verify_before_finish: enforce
+stop_conditions:
+  - no_tool_call_in_step
+  - explicit_final_answer
+  - budget_exhausted

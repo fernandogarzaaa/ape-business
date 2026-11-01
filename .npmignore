@@ -1,0 +1,35 @@
+# npm packaging blacklist (applies on top of package.json "files").
+# Vendored engine deps are installed by postinstall, never shipped.
+node_modules
+**/node_modules
+vendors/eve/node_modules
+vendors/genesis/node_modules
+# Python caches
+__pycache__
+**/__pycache__
+*.pyc
+# Build outputs & caches (the prebuilt adam release binary is re-included below)
+target
+.venv
+.eve-output
+.skein
+.fastembed_cache
+.tmp-*/
+# Repo tooling & CI (not shipped)
+.git
+.github
+scripts
+tests
+.vscode
+.idea
+# Logs & local state
+*.log
+adam_genome.json
+adam_memory.db
+*.db-wal
+*.db-shm
+vendor-report.json
+*.tsbuildinfo
+# Keep the prebuilt vendored ADAM release binary.
+!vendors/adam/target/release/adam-mcp
+!vendors/adam/target/release/adam-mcp.exe

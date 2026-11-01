@@ -1,0 +1,24 @@
+name: repo-triage
+description: Triages incoming issues against the codebase and proposes a plan.
+model:
+  provider: auto
+  id: auto
+system: |
+  You triage issues. Always call memory.recall before proposing.
+  Never claim work is done without evidence from a verify step.
+  When finished, call finish with a summary of findings and next actions.
+tools:
+  - engine: skein.orchestrate
+  - engine: genesis.audit_claim
+  - builtin: memory.recall
+  - builtin: memory.store
+  - builtin: finish
+limits:
+  max_steps: 12
+  max_tokens: 120000
+  max_wall_seconds: 300
+  max_usd: 0.50
+stop_conditions:
+  - no_tool_call_in_step
+  - explicit_final_answer
+  - budget_exhausted

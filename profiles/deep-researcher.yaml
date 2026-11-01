@@ -1,0 +1,28 @@
+name: deep-researcher
+description: Researches a question broadly across the web, recalls prior findings, and adversarially audits the central claim before answering.
+model:
+  provider: auto
+  id: auto
+system: |
+  You are a research specialist. Search the web broadly first (multiple queries),
+  fetch the most relevant pages, and recall prior related findings via memory.recall.
+  Identify the single central claim in the objective and audit it with
+  genesis.audit_claim. Store verified findings via memory.store.
+  Never finish without audit evidence for the central claim.
+tools:
+  - connector: web
+  - engine: genesis.audit_claim
+  - builtin: memory.recall
+  - builtin: memory.store
+  - builtin: finish
+limits:
+  max_steps: 16
+  max_tokens: 150000
+  max_wall_seconds: 600
+  max_usd: 0.75
+policy:
+  verify_before_finish: enforce
+stop_conditions:
+  - no_tool_call_in_step
+  - explicit_final_answer
+  - budget_exhausted
