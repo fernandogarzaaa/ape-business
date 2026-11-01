@@ -31,8 +31,18 @@ const PORT = process.env.PORT || 8788;
 const HOST = process.env.HOST || '127.0.0.1';
 
 function createServerWithStore(store) {
+  // Boolean admin check that NEVER writes a response. requireAdmin
+  // sends its own 401, so calling it here first ended the response
+  // before the tenant-token check could run (Codex P1).
+  function isAdmin(req) {
+    const expected = process.env.APE_API_TOKEN || '';
+    if (!expected) return true; // loopback prototype mode
+    const auth = req.headers.authorization || '';
+    const provided = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+    return tokenMatches(provided, expected);
+  }
   function tenantAuthorized(req, res, tenantId) {
-    if (requireAdmin(req, res)) return true;
+    if (isAdmin(req)) return true;
     const auth = req.headers.authorization || '';
     const provided = auth.startsWith('Bearer ') ? auth.slice(7) : '';
     if (provided && store.tenantTokenMatches(tenantId, provided)) return true;

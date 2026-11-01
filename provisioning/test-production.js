@@ -145,6 +145,55 @@ async function main() {
       assert.throws(() => price({ jobs: 100.7, steps: 10 }), /jobs/);
     });
 
+    await check('Stripe: unpaid checkout session never provisions (Codex P1)', async () => {
+      const s = createStore(dbFile);
+      let calls = 0;
+      const h = createWebhookHandler({ webhookSecret: HOOK_SECRET, store: s, provision: async () => { calls += 1; return {}; } });
+      const payload = JSON.stringify({
+        id: 'evt_unpaid', type: 'checkout.session.completed',
+        data: { object: { id: 'cs_1', subscription: 'sub_1', payment_status: 'unpaid', currency: 'usd', amount_total: 4028, metadata: { tenantId: 'tn_aaaaaaaaaaaa', amountCents: '4028' } } },
+      });
+      const out = await h(payload, sign(payload, HOOK_SECRET));
+      assert.strictEqual(out.reason, 'payment_not_completed');
+      assert.strictEqual(calls, 0);
+      s.close();
+    });
+
+    await check('Store: abandoned claim expires and can be stolen after TTL (Codex P2)', () => {
+      const s = createStore(dbFile);
+      assert.strictEqual(s.claimIntent('pi_dead'), true);
+      assert.strictEqual(s.claimIntent('pi_dead'), false); // live claim
+      // Backdate beyond the 15-minute TTL, then a retry must win.
+      const { DatabaseSync } = require('node:sqlite');
+      const raw = new DatabaseSync(dbFile);
+      raw.prepare("UPDATE processed_intents SET claimed_at = ? WHERE intent_id = 'pi_dead'")
+        .run(new Date(Date.now() - 16 * 60 * 1000).toISOString());
+      raw.close();
+      assert.strictEqual(s.claimIntent('pi_dead'), true);
+      s.close();
+    });
+
+    await check('Rollback: omitted --task-arn no longer exits as invalid (Codex P1)', () => {
+      const { spawnSync } = require('child_process');
+      const r = spawnSync('node', [path.join(__dirname, 'aws/rollback.js'), 'tn_rollback1'], { encoding: 'utf8' });
+      assert.strictEqual(r.status, 0, r.stderr.slice(0, 300));
+      const out = JSON.parse(r.stdout);
+      assert.ok(out.calls.some((c) => c.action === 'StopTaskSkippedNoTaskArn'));
+    });
+
+    await check('Email: spoofed unsubscribe cannot mutate opt-out when verified (Codex P1)', () => {
+      const h = createEmailHandler({
+        requireVerified: true,
+        tenants: { 'a@x.invalid': { id: 'tn_aaaaaaaaaaaa', agentName: 'A', businessName: 'A' } },
+      });
+      const r = h.handleInbound({
+        to: 'a@x.invalid', from: 'victim@x.invalid', subject: 'Please unsubscribe me', body: 'stop',
+        messageId: 'spoof1', now: 5000, headers: { 'Authentication-Results': 'mx; dmarc=fail' },
+      });
+      assert.strictEqual(r.reason, 'spam_auth_unverified');
+      assert.ok(!h.isOptedOut('tn_aaaaaaaaaaaa', 'victim@x.invalid'));
+    });
+
     await check('Traversal: invalid tenant ids resolve to null, never a path', () => {
       const s = createStore(dbFile);
       assert.strictEqual(s.getTenant('../../etc/passwd'), null);

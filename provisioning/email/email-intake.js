@@ -149,6 +149,16 @@ function createEmailHandler(options) {
     const cached = dedupGet(tenant.id, id);
     if (cached) return cached;
     const headers = message.headers || {};
+    // Sender authentication BEFORE any opt-out state change: the
+    // provider Bearer [REDACTED] the forwarder, not the From. A spoofed
+    // unsubscribe/opt-in must never mutate state (Codex P1). This
+    // gate is authentication, not content spam, so opt-out still
+    // precedes the keyword screen below.
+    if (requireVerified && authUnverified(headers)) {
+      const result = { status: 200, jobId: null, reason: 'spam_auth_unverified', replyDraft: null };
+      dedupPut(tenant.id, id, result);
+      return result;
+    }
     // Opt-out BEFORE spam: an unsubscribe carrying a spam keyword
     // must still unsubscribe the sender (old order lost it forever).
     if (isOptOut(message, headers)) {
@@ -172,11 +182,6 @@ function createEmailHandler(options) {
     const spam = isSpam({ from, subject, body, headers });
     if (spam) {
       const result = { status: 200, jobId: null, reason: 'spam_' + spam, replyDraft: null };
-      dedupPut(tenant.id, id, result);
-      return result;
-    }
-    if (requireVerified && authUnverified(headers)) {
-      const result = { status: 200, jobId: null, reason: 'spam_auth_unverified', replyDraft: null };
       dedupPut(tenant.id, id, result);
       return result;
     }

@@ -156,7 +156,22 @@ function createStore(dbPath) {
       const r = db.prepare(
         'INSERT OR IGNORE INTO processed_intents (intent_id, result, claimed_at) VALUES (?, NULL, ?)')
         .run(intentId, now());
-      return r.changes === 1; // false = already claimed or recorded
+      if (r.changes === 1) return true;
+      // Crash recovery: a claim whose process died before recording
+      // must not block provisioning forever. Claims older than the
+      // TTL with no result may be stolen by the next delivery.
+      const CLAIM_TTL_MS = 15 * 60 * 1000;
+      const row = db.prepare(
+        'SELECT result, claimed_at FROM processed_intents WHERE intent_id = ?')
+        .get(intentId);
+      if (row && row.result == null &&
+          Date.now() - Date.parse(row.claimed_at) > CLAIM_TTL_MS) {
+        const steal = db.prepare(
+          'UPDATE processed_intents SET claimed_at = ? WHERE intent_id = ? AND result IS NULL AND claimed_at = ?')
+          .run(now(), intentId, row.claimed_at);
+        return steal.changes === 1;
+      }
+      return false; // recorded, or a live claim within its TTL
     },
     recordIntent(intentId, result) {
       db.prepare(`INSERT INTO processed_intents (intent_id, result, claimed_at)

@@ -53,6 +53,10 @@ const secretName = `ape-tenant-${tenantId}/bearer`;
 const secretArnBase = `arn:aws:secretsmanager:${region}:${account}:secret:${secretName}`;
 const logGroup = `/ape/tenants/${tenantId}`;
 const albConfigured = Boolean(env('APE_ALB_LISTENER_ARN'));
+if (live && albConfigured && !env('APE_VPC_ID')) {
+  console.error('APE_VPC_ID is required when APE_ALB_LISTENER_ARN is set (target group needs a VPC)');
+  process.exit(2);
+}
 const publicDomain = env('APE_PUBLIC_DOMAIN') || '';
 const calls = [];
 const record = (service, action, detail) => calls.push({ service, action, ...detail });
@@ -149,11 +153,26 @@ try {
         '--tags', `Key=ape:tenant,Value=${tenantId}`]);
       targetGroupArn = tg.TargetGroups?.[0]?.TargetGroupArn || null;
     }
-    if (live && targetGroupArn && taskArn) {
-      // awsvpc target registration needs the task ENI IP; resolved
-      // by the deploy workflow's wait step (see deploy.yml). Record
-      // the intent here so the plan is auditable in dry-run.
-      record('elbv2', 'RegisterTargets', { targetGroup: '<created>', note: 'task ENI IP registered by workflow wait step' });
+    if (targetGroupArn && taskArn) {
+      // awsvpc: register the task's ENI private IP on port 8080.
+      // Without this the listener forwards to an empty target group
+      // while reporting 'routed' (Codex P1). Live calls execute;
+      // dry-run records them.
+      record('ecs', 'DescribeTasks', { task: '<run-task result>' });
+      record('ec2', 'DescribeNetworkInterfaces', { note: 'task ENI -> private IP' });
+      record('elbv2', 'RegisterTargets', { targetGroup: '<created>', port: 8080 });
+      if (live) {
+        const described = awsJson(['ecs', 'describe-tasks', '--cluster', env('APE_CLUSTER'), '--tasks', taskArn]);
+        const eniId = described.tasks?.[0]?.attachments
+          ?.flatMap((a) => a.details || [])
+          .find((d) => d.name === 'networkInterfaceId')?.value;
+        if (!eniId) throw new Error('could not resolve task ENI for ALB registration');
+        const eni = awsJson(['ec2', 'describe-network-interfaces', '--network-interface-ids', eniId]);
+        const ip = eni.NetworkInterfaces?.[0]?.PrivateIpAddress;
+        if (!ip) throw new Error('task ENI has no private IP for ALB registration');
+        aws(['elbv2', 'register-targets', '--target-group-arn', targetGroupArn,
+          '--targets', `Id=${ip},Port=8080`]);
+      }
     }
     const host = publicDomain ? `ape-${tenantId}.${publicDomain}` : null;
     record('elbv2', 'CreateRule', { listener: '<from APE_ALB_LISTENER_ARN>', host });

@@ -17,7 +17,10 @@ const args = process.argv.slice(2);
 const tenantId = args.find((a) => !a.startsWith('--'));
 const live = args.includes('--live');
 const outPath = args.find((a) => a.startsWith('--out='))?.slice(6) || null;
-const taskArnArg = args[args.indexOf('--task-arn') + 1] || null;
+// Only read the value when the flag is present: indexOf is -1 when
+// omitted, and args[0] (the tenant id) is not a task ARN (Codex P1).
+const taskArnIdx = args.indexOf('--task-arn');
+const taskArnArg = taskArnIdx >= 0 ? (args[taskArnIdx + 1] || null) : null;
 if (taskArnArg && !/^arn:aws:ecs:[a-z0-9-]+:\d{12}:task\/[A-Za-z0-9_\-/]+$/.test(taskArnArg)) {
   console.error('invalid --task-arn format');
   process.exit(2);

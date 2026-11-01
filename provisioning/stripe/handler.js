@@ -75,16 +75,35 @@ function createWebhookHandler(deps) {
     );
     const obj = event.data && event.data.object ? event.data.object : {};
 
-    // Subscription provisioning entry (checkout.session.completed
-    // carries the subscription; payment_intent.succeeded below is
-    // kept for one-time/test-mode compatibility).
-    if (event.type === 'checkout.session.completed') {
+    // Subscription provisioning entry. Signature verification
+    // authenticates the event; it does NOT prove payment. Gate on
+    // payment_status + amount exactly like the intent path — an
+    // 'unpaid' session must never mark a tenant paid (Codex P1).
+    // Deferred success arrives as checkout.session.async_payment_succeeded.
+    if (event.type === 'checkout.session.completed' ||
+        event.type === 'checkout.session.async_payment_succeeded') {
       const md = obj.metadata || {};
-      if (!md.tenantId) {
-        return { ignored: true, reason: 'missing_tenant_metadata', type: event.type };
+      if (obj.payment_status !== 'paid') {
+        return { ignored: true, reason: 'payment_not_completed', type: event.type };
+      }
+      if (!md.tenantId || !md.amountCents) {
+        return { ignored: true, reason: 'missing_checkout_metadata', type: event.type };
+      }
+      if (obj.currency && obj.currency !== 'usd') {
+        return { ignored: true, reason: 'amount_mismatch', type: event.type };
+      }
+      if (obj.amount_total == null || Number(obj.amount_total) !== Number(md.amountCents)) {
+        return {
+          ignored: true, reason: 'amount_mismatch', type: event.type,
+          receivedCents: obj.amount_total == null ? null : Number(obj.amount_total),
+          expectedAmountCentsInMetadata: Number(md.amountCents),
+        };
       }
       const key = obj.subscription || obj.id;
       return provisionOnce(key, null, { event });
+    }
+    if (event.type === 'checkout.session.async_payment_failed') {
+      return { ignored: true, reason: 'payment_not_completed', type: event.type };
     }
     if (event.type === 'invoice.paid' ||
         event.type === 'customer.subscription.deleted' ||
