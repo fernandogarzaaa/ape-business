@@ -213,6 +213,11 @@ export async function runDelegated(args, ctx = {}) {
   try {
     const worker = fork(join(root, "src", "agent", "worker.js"), [childId, JSON.stringify({
       parentRunId: ctx.parentRunId ?? null,
+      // Depth MUST increment across the fork or every child restarts
+      // at 0 and maxDepth never binds (Codex P2). The ancestor ceiling
+      // travels with it so a child profile cannot widen it.
+      depth: depth + 1,
+      maxDelegateDepth: maxDepth,
       budgetCaps: sliced.limits,
       // Hardening 6: a delegated child run inherits the parent's threaded
       // Sigil index directory instead of depending only on its own env.

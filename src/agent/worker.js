@@ -177,6 +177,8 @@ async function main() {
     // Mock runs are hermetic replays: no ADAM I/O (also keeps test workers fast).
     initialContext: (opts.resume || opts.mockScript) ? null : await hydrateContext(req.objective, req.organism_id ?? "default"),
     parentRunId: opts.parentRunId ?? req.parent_run_id ?? null,
+    depth: opts.depth ?? 0,
+    maxDelegateDepth: opts.maxDelegateDepth ?? null,
     sigilIndexDir: opts.sigilIndexDir ?? null,
   });
   updateRun(runId, {

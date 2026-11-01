@@ -72,7 +72,7 @@ export function ingestToolResult({ runKey, globalCtx = {}, policyCtx = {}, toolN
   };
 }
 
-export async function runAgent({ profile, objective, organism_id = "default", onStep, onCheckpoint, mockScript, mockCostPerCall = 0, resolvedModel, resolvedChain = null, routing = null, initial = null, initialContext = null, depth = 0, parentRunId = null, runId = null, sigilIndexDir = null }) {
+export async function runAgent({ profile, objective, organism_id = "default", onStep, onCheckpoint, mockScript, mockCostPerCall = 0, resolvedModel, resolvedChain = null, routing = null, initial = null, initialContext = null, depth = 0, maxDelegateDepth = null, parentRunId = null, runId = null, sigilIndexDir = null }) {
   const budget = makeBudget(profile.limits);
   // Resume: seed budget counters from the checkpoint so numbering and ceilings continue.
   if (initial?.budget) {
@@ -123,6 +123,18 @@ export async function runAgent({ profile, objective, organism_id = "default", on
   let truncations = initial?.truncations ?? 0;
   let overflowRecoveries = initial?.overflowRecoveries ?? 0;
   const driftState = initial?.driftState ?? initDrift();
+  // Delegated child cost is charged to THIS run's budget the moment
+  // it is logged. Slicing alone (sliceChildBudget) only caps each
+  // child against a snapshot; without the debit, successive children
+  // each saw the same unspent allowance and the parent could still
+  // spend it too (Codex P1). Every delegation is charged once, at
+  // its single log point.
+  const chargeDelegations = (list) => {
+    for (const d of list ?? []) {
+      const c = Number(d.cost_usd ?? 0);
+      if (c > 0) budget.spend({ cost: c });
+    }
+  };
   // Evidence artifacts: full verifier results for the grounding gate (the gate
   // consumes these, never the truncated ledger summaries). Restored on resume
   // so a replacement worker keeps the evidence gathered so far.
@@ -142,7 +154,7 @@ export async function runAgent({ profile, objective, organism_id = "default", on
     // SIGIL_INDEX_DIR environment variable. Precedence: the explicit
     // runAgent argument, then a profile field, then the environment.
     sigilIndexDir: sigilIndexDir ?? profile.sigilIndexDir ?? process.env.SIGIL_INDEX_DIR ?? null,
-    maxDelegateDepth: profile.limits?.max_delegate_depth ?? 2,
+    maxDelegateDepth: maxDelegateDepth ?? profile.limits?.max_delegate_depth ?? 2,
     budget: {
       stepsLeft: (profile.limits?.max_steps ?? 0) - budget.steps,
       tokensLeft: (profile.limits?.max_tokens ?? 0) - budget.tokens,
@@ -249,6 +261,7 @@ export async function runAgent({ profile, objective, organism_id = "default", on
     for (const { tc, res, attempts, repairs, delegations, durationMs } of results) {
       const prefix = attempts > 1 ? `retry:${attempts}:${repairs.map((r) => r.repair).join("+")}:` : "";
       repairLog.push(...repairs);
+      chargeDelegations(delegations);
       delegationLog.push(...delegations);
       const ingested = ingest(tc.name, tc.id, res);
       const toolStep = { step: budget.steps, kind: "tool", tool: tc.name, argsHash: shaShort(JSON.stringify(tc.args)), durationMs, tokens: 0, cost: 0, parallel: true, resultSummary: truncTag(ingested) + prefix + JSON.stringify(res).slice(0, 200) };
@@ -489,6 +502,7 @@ const toolCalls = resp.toolCalls ?? [];
           const simple = await runSimpleCall(tool, tc, t0);
           res = simple.res;
           repairLog.push(...simple.repairs);
+          chargeDelegations(simple.delegations);
           delegationLog.push(...simple.delegations);
           const prefix = simple.attempts > 1 ? `retry:${simple.attempts}:${simple.repairs.map((r) => r.repair).join("+")}:` : "";
           toolStep = { step: budget.steps, kind: "tool", tool: tc.name, argsHash: shaShort(JSON.stringify(tc.args)), durationMs: simple.durationMs, tokens: 0, cost: 0, resultSummary: prefix + JSON.stringify(res).slice(0, 200) };

@@ -294,6 +294,10 @@ export async function dispatchCall(name, args = {}, ctx = {}) {
         break;
       }
       case "ape_agent_resume": {
+        // No run_id is a caller error (missing_args), not a missing
+        // run: the honest-stub sweep calls every tool with {} and
+        // must see the taxonomy's missing_args, not run_not_found.
+        if (!a.run_id) { result = { error: "missing_args", need: ["run_id"] }; break; }
         result = resumeRun(a.run_id, { mockScript: a._mockScript, mockCostPerCall: a._mockCostPerCall, provider: a.provider, model: a.model });
         break;
       }

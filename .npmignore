@@ -18,7 +18,7 @@ target
 # Repo tooling & CI (not shipped)
 .git
 .github
-scripts
+# scripts/ ships: postinstall is a lifecycle script (see package.json files)
 tests
 .vscode
 .idea
